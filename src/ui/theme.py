@@ -1,247 +1,99 @@
-"""Dark theme for the desktop app (no external assets, fully offline)."""
+"""Design tokens and stylesheet loading for the desktop app.
+
+Widget styling lives in ``styles/dark.qss``.  The small JSON token file is the
+single source for the handful of colours that must be used from Python (icon
+pixmaps and the preview's custom painting).
+"""
 
 from __future__ import annotations
 
+import json
+import sys
+from pathlib import Path
+
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 
-BG = "#17181c"
-PANEL = "#1f2127"
-PANEL_ALT = "#262932"
-BORDER = "#333743"
-TEXT = "#e7e9ee"
-MUTED = "#9aa1b1"
-# Placeholders must be clearly dimmer than typed text so an empty field is
-# never mistaken for real content.
-PLACEHOLDER = "#6f7789"
-ACCENT = "#4f8cff"
-ACCENT_DARK = "#3c6fd1"
-GREEN = "#3ecf8e"
-ORANGE = "#f0a03c"
-RED = "#f0616d"
 
-STYLESHEET = f"""
-QWidget {{
-    background: {BG};
-    color: {TEXT};
-    font-size: 13px;
-}}
-QMainWindow, QDialog {{ background: {BG}; }}
+def _resource_root() -> Path:
+    """Repository root in dev, PyInstaller extraction dir when frozen."""
+    frozen = getattr(sys, "_MEIPASS", None)
+    if frozen:
+        return Path(frozen)
+    return Path(__file__).resolve().parents[2]
 
-/* Labels sit on coloured panels; a transparent background stops the global
-   QWidget fill from drawing a tight dark box around the text, and the small
-   horizontal padding keeps glyphs off the panel edge. */
-QLabel {{
-    background: transparent;
-    padding: 1px 4px;
-}}
-QLabel#hint_badge {{
-    background: transparent;
-    padding: 0;
-}}
 
-QGroupBox {{
-    background: {PANEL};
-    border: 1px solid {BORDER};
-    border-radius: 8px;
-    margin-top: 12px;
-    padding: 8px 10px 8px 10px;
-    font-weight: 600;
-}}
-QGroupBox::title {{
-    subcontrol-origin: margin;
-    left: 12px;
-    padding: 0 4px;
-    color: {MUTED};
-}}
+ROOT = _resource_root()
+STYLE_DIR = ROOT / "styles"
+TOKENS: dict[str, str] = json.loads(
+    (STYLE_DIR / "tokens.json").read_text(encoding="utf-8")
+)
 
-QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
-    background: {PANEL_ALT};
-    border: 1px solid {BORDER};
-    border-radius: 6px;
-    padding: 5px 7px;
-    selection-background-color: {ACCENT_DARK};
-}}
-QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus {{
-    border: 1px solid {ACCENT};
-}}
-QComboBox::drop-down {{
-    subcontrol-origin: padding;
-    subcontrol-position: top right;
-    width: 22px;
-    border-left: 1px solid {BORDER};
-    background: transparent;
-}}
-QSpinBox, QDoubleSpinBox {{ padding-right: 28px; }}
-QSpinBox::up-button, QDoubleSpinBox::up-button,
-QSpinBox::down-button, QDoubleSpinBox::down-button {{
-    subcontrol-origin: border;
-    width: 22px;
-    background: transparent;
-    border-left: 1px solid {BORDER};
-}}
-QSpinBox::up-button, QDoubleSpinBox::up-button {{
-    subcontrol-position: top right;
-    border-top-right-radius: 6px;
-}}
-QSpinBox::down-button, QDoubleSpinBox::down-button {{
-    subcontrol-position: bottom right;
-    border-bottom-right-radius: 6px;
-}}
-QComboBox QAbstractItemView {{
-    background: {PANEL_ALT};
-    border: 1px solid {BORDER};
-    selection-background-color: {ACCENT_DARK};
-    outline: none;
-}}
+BG = TOKENS["bg"]
+PANEL = TOKENS["panel"]
+PANEL_ALT = TOKENS["panel_alt"]
+PANEL_RAISED = TOKENS["panel_raised"]
+PREVIEW = TOKENS["preview"]
+BORDER = TOKENS["border"]
+BORDER_STRONG = TOKENS["border_strong"]
+TEXT = TOKENS["text"]
+MUTED = TOKENS["muted"]
+MUTED_MIN = TOKENS["muted_min"]
+PLACEHOLDER = TOKENS["placeholder"]
+ACCENT = TOKENS["primary"]
+ACCENT_HOVER = TOKENS["primary_hover"]
+ON_PRIMARY = TOKENS["on_primary"]
+GREEN = TOKENS["success"]
+ON_SUCCESS = TOKENS["on_success"]
+ORANGE = TOKENS["warning"]
+WARNING = TOKENS["warning"]
+WARNING_BG = TOKENS["warning_bg"]
+REGION = TOKENS["region"]
+RED = TOKENS["danger"]
+DANGER_BG = TOKENS["danger_bg"]
+DISABLED = TOKENS["disabled"]
 
-QPushButton {{
-    background: {PANEL_ALT};
-    border: 1px solid {BORDER};
-    border-radius: 6px;
-    padding: 6px 14px;
-    min-height: 32px;
-}}
-QPushButton:hover {{ background: #2e323d; border-color: #454b5a; }}
-QPushButton:pressed {{ background: #21242c; }}
-QPushButton:disabled {{ color: #5d6270; background: #202229; border-color: #2a2d36; }}
-QPushButton#primary {{
-    background: {ACCENT};
-    border-color: {ACCENT};
-    color: #0d1220;
-    font-weight: 700;
-}}
-QPushButton#primary:hover {{ background: #6a9cff; }}
-QPushButton#primary:disabled {{ background: #2c3a55; border-color: #2c3a55; color: #7d879b; }}
-QPushButton#danger {{ color: {RED}; }}
-QPushButton#danger:hover {{ border-color: {RED}; }}
+STYLESHEET = (STYLE_DIR / "dark.qss").read_text(encoding="utf-8").replace(
+    "__STYLES__", STYLE_DIR.as_posix()
+)
 
-/* Segmented Original / Result switch */
-QPushButton#segment_left, QPushButton#segment_right {{
-    background: {PANEL_ALT};
-    border: 1px solid {BORDER};
-    border-radius: 0;
-    padding: 5px 14px;
-    min-height: 30px;
-}}
-QPushButton#segment_left {{
-    border-top-left-radius: 6px;
-    border-bottom-left-radius: 6px;
-    border-right: none;
-}}
-QPushButton#segment_right {{
-    border-top-right-radius: 6px;
-    border-bottom-right-radius: 6px;
-}}
-QPushButton#segment_left:hover, QPushButton#segment_right:hover {{
-    background: #2e323d;
-}}
-QPushButton#segment_left:checked, QPushButton#segment_right:checked {{
-    background: {ACCENT};
-    border-color: {ACCENT};
-    color: #0d1220;
-    font-weight: 700;
-}}
 
-QPushButton#zoom_btn {{
-    padding: 4px 10px;
-}}
-QPushButton#zoom_square {{
-    padding: 2px;
-    font-size: 16px;
-    font-weight: 700;
-}}
-QLabel#zoom_label {{
-    color: {MUTED};
-    font-weight: 600;
-}}
-
-QLabel#uncertain_badge {{
-    background: #4a3a14;
-    color: #f5c542;
-    border: 1px solid #80621c;
-    border-radius: 9px;
-    padding: 1px 8px;
-    font-size: 11px;
-    font-weight: 700;
-}}
-
-QListWidget, QTableWidget, QTreeWidget {{
-    background: {PANEL};
-    border: 1px solid {BORDER};
-    border-radius: 8px;
-    alternate-background-color: #232630;
-    outline: none;
-}}
-QListWidget::item {{ padding: 5px 6px; border-radius: 4px; }}
-QListWidget::item:selected {{ background: {ACCENT_DARK}; color: white; }}
-QTableWidget {{ gridline-color: #2c303a; }}
-QTableWidget::item:selected {{ background: {ACCENT_DARK}; color: white; }}
-QHeaderView::section {{
-    background: {PANEL_ALT};
-    color: {MUTED};
-    border: none;
-    border-bottom: 1px solid {BORDER};
-    padding: 5px 6px;
-    font-weight: 600;
-}}
-
-QProgressBar {{
-    background: {PANEL_ALT};
-    border: 1px solid {BORDER};
-    border-radius: 6px;
-    height: 14px;
-    text-align: center;
-    color: {TEXT};
-    font-size: 11px;
-}}
-QProgressBar::chunk {{ background: {ACCENT}; border-radius: 5px; }}
-
-QSplitter::handle {{ background: {BORDER}; }}
-QSplitter::handle:horizontal {{ width: 3px; }}
-QSplitter::handle:vertical {{ height: 3px; }}
-
-QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
-QScrollBar::handle:vertical {{ background: #3a3f4c; border-radius: 5px; min-height: 24px; }}
-QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px; }}
-QScrollBar::handle:horizontal {{ background: #3a3f4c; border-radius: 5px; min-width: 24px; }}
-QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
-QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
-
-QCheckBox {{ spacing: 6px; background: transparent; }}
-QCheckBox::indicator {{
-    width: 15px; height: 15px;
-    border: 1px solid {BORDER};
-    border-radius: 4px;
-    background: {PANEL_ALT};
-}}
-QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; }}
-QToolTip {{
-    background: {PANEL_ALT};
-    color: {TEXT};
-    border: 1px solid {BORDER};
-    padding: 4px 6px;
-}}
-QStatusBar {{
-    background: {PANEL};
-    border-top: 1px solid {BORDER};
-    color: {MUTED};
-    padding-left: 8px;
-}}
-"""
+def repolish(widget: QWidget) -> None:
+    """Re-evaluate QSS after changing a dynamic property."""
+    style = widget.style()
+    style.unpolish(widget)
+    style.polish(widget)
+    widget.update()
 
 
 def dim_placeholder(widget) -> None:
-    """Use the muted placeholder colour on one widget (works without app theme)."""
+    """Use the muted placeholder colour on one widget."""
     palette = widget.palette()
     palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(PLACEHOLDER))
     widget.setPalette(palette)
 
 
 def apply_theme(app: QApplication) -> None:
-    """Apply the dark stylesheet plus a placeholder colour that stays dim."""
+    """Apply the dark palette and the external stylesheet."""
     app.setStyle("Fusion")
-    app.setStyleSheet(STYLESHEET)
-    palette = app.palette()
+
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor(BG))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(TEXT))
+    palette.setColor(QPalette.ColorRole.Base, QColor(PANEL_ALT))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(PANEL))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(PANEL_ALT))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(TEXT))
+    palette.setColor(QPalette.ColorRole.Text, QColor(TEXT))
     palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(PLACEHOLDER))
+    palette.setColor(QPalette.ColorRole.Button, QColor(PANEL_ALT))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(TEXT))
+    palette.setColor(QPalette.ColorRole.BrightText, QColor(RED))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(ON_PRIMARY))
+    palette.setColor(QPalette.ColorRole.Link, QColor(ACCENT))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(DISABLED))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(DISABLED))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(DISABLED))
     app.setPalette(palette)
+    app.setStyleSheet(STYLESHEET)

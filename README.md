@@ -3,10 +3,9 @@
 **Offline** desktop tool that finds text/UI elements by user-entered keywords in screenshots,
 then erases them with inpainting. No image uploads, no cloud calls, runs on CPU.
 
-> Status: **Phase 23 – per-region policy + margin, `e1–e4` acceptance, UI polish; 127 tests passed**.
-> Linux onedir bundle rebuilt in Phase 9 and `SELFTEST OK`.
-> Windows/macOS built with native CI workflows (not run on this machine).
-> See `docs/STATUS.md` (section 16), `docs/OPTIMIZATION_PLAN.md` and `docs/REFACTOR_PLAN.md`.
+> Status: **0.2.0 – redesigned UI (three-pane workspace, region cards, external dark theme); 132 tests passed**.
+> Linux onedir bundle is verified with `SELFTEST OK`; Windows/macOS are built by the native CI workflows.
+> See `docs/STATUS.md`, `docs/OPTIMIZATION_PLAN.md` and `docs/REFACTOR_PLAN.md`.
 
 ## Install from source
 
@@ -31,26 +30,29 @@ The model directory can be overridden with the `IC_MODEL_DIR` environment variab
 
 ## GUI
 
-One screen, only 8 visible controls:
+Toolbar: **Add images** / **Choose folder**, the keyword chip field, **Advanced** and the
+**Analyze N images** split button (Analyze all images / Analyze this image only).
 
-1. **Choose images…** / **Folder…** → image list; `Delete` or right-click to remove an image from the list.
-   Dragging images/folders into the window also works.
-2. Enter keywords (one per line, or separated by `,`) → **Analyze**.
-3. Region table: tick the "Erase" box to enable each region; **Needs review** regions are off by default
-   and are only erased after you mark them yourself. The **Erase mode** column lets you choose
-   **Auto / Text only / Whole block** for each region. The **Padding** column lets you **expand (+)** or
-   **shrink (-)** the mask scope of the selected region by pixels (`-12..+12`). Preview has 2 modes:
-   **Original | Result**; in Result mode, **drag with the right mouse button** to compare the wipe with the original image.
-4. **Save images** (all; `Ctrl+S` saves the selected image) + `report.csv`/`report.json`.
-   Never overwrites original images.
+1. Add images or a folder; dragging files/folders into the window also works.
+   `Delete` or right-click removes an image from the list.
+2. Type a keyword and press Enter (or comma) to add it as a chip; `×` removes it.
+3. **Analyze** shows the result immediately. Images, preview and region cards stay in sync;
+   switching images only swaps the picture, keeping the Original/Result mode.
+4. Region cards: tick a region to erase it, expand it to choose **Erase mode**
+   (Blend background / Solid fill / Blur) and **Padding** (`-12..+12` px). **Needs review**
+   regions stay off until you tick them.
+5. **This image** / **Save all (N)** sit in the regions footer; `Ctrl+S` saves all.
+   Reports (`report.csv` / `report.json`) are written to the output folder; originals are never overwritten.
+
+Side panels collapse to rails with their arrow buttons or `Ctrl+B`; panel widths are remembered.
+**Compare** (or right-drag) wipes between the original and the result.
 
 Advanced options (engine, padding, matching, preset, output folder, log) live in the
-**Advanced options** button, collapsed by default. Validation uses disabled buttons + an inline banner,
-not constant dialogs. Labels have left/right padding; the keyword placeholder uses a muted color
-and hides on focus so it isn't confused with the text being typed. The **Keywords / Engine / Padding** labels have a **gray info icon**: only hovering/clicking
-the icon shows the explanation. Dropdowns and spinboxes have clear arrow indicators.
+**Advanced** dialog. Validation uses disabled buttons + tooltips; icon-only buttons have
+accessible names and dropdowns/spinboxes have clear arrow indicators.
 
-Shortcuts: `Ctrl+O` add images, `Ctrl+R` analyze, `Ctrl+S` save, `Ctrl+F` fit to window.
+Shortcuts: `Ctrl+O` add images, `Ctrl+Enter` analyze, `Ctrl+S` save all, `Ctrl+B` toggle panels,
+`Ctrl+0` fit to window, `Ctrl+1` 1:1.
 
 ### Keyword matching semantics (D7)
 - Case-insensitive, extra whitespace is ignored; every occurrence is found.
@@ -137,12 +139,12 @@ The script builds with `imagecleaner.spec`, runs `imagecleaner-selftest` inside 
 
 | OS | File to distribute | What the user does |
 | --- | --- | --- |
-| Windows x64 | `dist/ImageCleaner-Setup-0.1.0-x64.exe` | Download → run → Next → open from the Start Menu |
-| Windows (portable) | `dist/ImageCleaner-0.1.0-windows-x64.zip` | Unzip → run `ImageCleaner.exe` |
-| macOS Apple Silicon | `dist/ImageCleaner-0.1.0-macos-arm64.dmg` | Open the DMG → drag into Applications |
-| macOS Intel | `dist/ImageCleaner-0.1.0-macos-x64.dmg` | Open the DMG → drag into Applications |
-| Linux x64 | `dist/ImageCleaner-0.1.0-linux-x64.deb` | `sudo apt install ./ImageCleaner-0.1.0-linux-x64.deb` |
-| Linux (portable) | `dist/ImageCleaner-0.1.0-linux-x64.tar.gz` | Unzip → run `ImageCleaner` |
+| Windows x64 | `dist/ImageCleaner-Setup-0.2.0-x64.exe` | Download → run → Next → open from the Start Menu |
+| Windows (portable) | `dist/ImageCleaner-0.2.0-windows-x64.zip` | Unzip → run `ImageCleaner.exe` |
+| macOS Apple Silicon | `dist/ImageCleaner-0.2.0-macos-arm64.dmg` | Open the DMG → drag into Applications |
+| macOS Intel | `dist/ImageCleaner-0.2.0-macos-x64.dmg` | Open the DMG → drag into Applications |
+| Linux x64 | `dist/ImageCleaner-0.2.0-linux-x64.deb` | `sudo apt install ./ImageCleaner-0.2.0-linux-x64.deb` |
+| Linux (portable) | `dist/ImageCleaner-0.2.0-linux-x64.tar.gz` | Unzip → run `ImageCleaner` |
 
 The Windows installer uses Inno Setup (available on the `windows-2022` runner). macOS creates a
 standard `.app` then packages it into a `.dmg`. Linux creates a `.deb` with a menu shortcut and

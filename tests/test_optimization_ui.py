@@ -106,7 +106,8 @@ def test_failed_analysis_updates_list_item(window, monkeypatch):
 
     item = window.file_list.item(0)
     assert item is not None
-    assert "error" in item.text().casefold(), item.text()
+    row = window._row_widgets[str(entry.path.resolve())]
+    assert "error" in row.status.text().casefold()
     assert "boom" in item.toolTip(), item.toolTip()
 
 

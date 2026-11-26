@@ -84,7 +84,7 @@ class DotsSplitter(QSplitter):
             grip = QLabel(parent)
             grip.setPixmap(icons.pixmap(name, self.GRIP, MUTED))
             grip.setFixedSize(self.GRIP, self.GRIP)
-            grip.setStyleSheet("background: transparent; padding: 0;")
+            grip.setObjectName("splitter_grip")
             grip.setAttribute(Qt.WA_TransparentForMouseEvents)
             self._grips.append(grip)
         return parent
@@ -130,7 +130,7 @@ class HintLabel(QWidget):
 
     def __init__(self, text: str, hint: str, parent=None) -> None:
         super().__init__(parent)
-        self.setStyleSheet("background: transparent;")
+        self.setObjectName("hint_label")
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
         self._hint = hint
         row = QHBoxLayout(self)
@@ -140,16 +140,18 @@ class HintLabel(QWidget):
         self.label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
         self.badge = QLabel(self)
         self.badge.setObjectName("hint_badge")
-        self.badge.setPixmap(icons.pixmap("info", 16, "#9a9a9a"))
+        self.badge.setPixmap(icons.pixmap("info", 16, MUTED))
         self.badge.setFixedSize(16, 16)
         self.badge.setAlignment(Qt.AlignCenter)
         self.badge.setAccessibleName("Information")
         self.badge.setToolTip(hint)
         self.badge.setCursor(Qt.WhatsThisCursor)
         self.badge.installEventFilter(self)
+        # Keep the label + info badge together and hug the right edge so the
+        # tip icon sits next to its field instead of floating far to the left.
+        row.addStretch(1)
         row.addWidget(self.label)
         row.addWidget(self.badge)
-        row.addStretch(1)
 
     def text(self) -> str:
         return self.label.text()

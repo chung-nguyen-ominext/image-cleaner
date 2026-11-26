@@ -33,6 +33,9 @@ else:
 
 # QtAwesome bundles its Font Awesome fonts as package data.
 datas += collect_data_files("qtawesome")
+# External theme: QSS + the colour tokens used by icons/preview painting.
+for name in ("dark.qss", "tokens.json", "check.png"):
+    datas.append((str(ROOT / "styles" / name), "styles"))
 
 hiddenimports = collect_submodules("rapidocr") + [
     "onnxruntime", "cv2", "PIL", "numpy",

@@ -9,12 +9,13 @@ from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
 from src.core.models import Region, RegionKind
+from src.ui.theme import MUTED, PREVIEW, REGION, TEXT, WARNING
 from src.utils.image_utils import LoadedImage
 
 COLORS = {
-    RegionKind.ELEMENT: QColor("#3ecf8e"),
-    RegionKind.TEXT: QColor("#f0a03c"),
-    RegionKind.UNCERTAIN: QColor("#f0616d"),
+    RegionKind.ELEMENT: QColor(REGION),
+    RegionKind.TEXT: QColor(REGION),
+    RegionKind.UNCERTAIN: QColor(WARNING),
 }
 
 HANDLES = {
@@ -67,6 +68,11 @@ class PreviewCanvas(QWidget):
         self._offset = QPointF(0.0, 0.0)
         self._fit = True
 
+        self._compare_mode = False
+        self._toolbar: QWidget | None = None
+        self._caption: QWidget | None = None
+        self._empty_state: QWidget | None = None
+
         self._selected = -1
         self._hover_handle: str | None = None
         self._drag_id = -1
@@ -86,9 +92,78 @@ class PreviewCanvas(QWidget):
         self._mask_pixmap = None
         self._pixmap = QPixmap.fromImage(bgr_to_qimage(loaded.bgr)) if loaded is not None else None
         self._selected = -1
+        self._compare_mode = False
         self._fit = True
         self._recalc_fit()
+        self._update_overlays()
         self.update()
+
+    # ---------------------------------------------------------- overlays
+
+    def set_overlay_toolbar(self, widget: QWidget) -> None:
+        self._toolbar = widget
+        widget.setParent(self)
+        widget.adjustSize()
+        self._position_overlays()
+        self._update_overlays()
+
+    def set_caption_label(self, widget: QWidget) -> None:
+        self._caption = widget
+        widget.setParent(self)
+        widget.hide()
+        self._position_overlays()
+
+    def set_empty_state(self, widget: QWidget) -> None:
+        self._empty_state = widget
+        widget.setParent(self)
+        widget.setGeometry(self.rect())
+        self._update_overlays()
+
+    def set_caption(self, text: str) -> None:
+        if self._caption is None:
+            return
+        self._caption.setText(text)
+        self._caption.adjustSize()
+        self._update_overlays()
+
+    def _position_overlays(self) -> None:
+        if self._toolbar is not None:
+            self._toolbar.adjustSize()
+            x = max(8, (self.width() - self._toolbar.width()) // 2)
+            self._toolbar.move(x, 16)
+        if self._caption is not None:
+            self._caption.adjustSize()
+            max_width = max(80, self.width() - 32)
+            if self._caption.width() > max_width:
+                self._caption.setMaximumWidth(max_width)
+                self._caption.adjustSize()
+            self._caption.move(16, max(16, self.height() - self._caption.height() - 16))
+        if self._empty_state is not None:
+            self._empty_state.setGeometry(self.rect())
+
+    def _update_overlays(self) -> None:
+        has_image = self._pixmap is not None
+        if self._toolbar is not None:
+            self._toolbar.setVisible(has_image)
+        if self._caption is not None:
+            has_text = bool(self._caption.text()) if hasattr(self._caption, "text") else False
+            self._caption.setVisible(has_image and has_text)
+        if self._empty_state is not None:
+            self._empty_state.setVisible(not has_image)
+        self._position_overlays()
+
+    def set_compare(self, enabled: bool) -> None:
+        """Toggle the visible original/result wipe divider."""
+        self._compare_mode = bool(enabled and self._result_pixmap is not None)
+        if self._compare_mode:
+            self._split = 0.5
+            self.setCursor(Qt.SplitHCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)
+        self.update()
+
+    def compare_enabled(self) -> bool:
+        return self._compare_mode
 
     def set_regions(self, regions: list[Region]) -> None:
         self._regions = regions
@@ -102,6 +177,8 @@ class PreviewCanvas(QWidget):
 
     def set_result_image(self, bgr: np.ndarray | None) -> None:
         self._result_pixmap = QPixmap.fromImage(bgr_to_qimage(bgr)) if bgr is not None else None
+        if self._result_pixmap is None:
+            self._compare_mode = False
         self._split = 1.0
         self.update()
 
@@ -144,6 +221,9 @@ class PreviewCanvas(QWidget):
             if region.id == self._selected:
                 return region
         return None
+
+    def selected_region_id(self) -> int:
+        return self._selected
 
     # ------------------------------------------------------------- coordinates
 
@@ -193,13 +273,9 @@ class PreviewCanvas(QWidget):
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt name
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#101115"))
+        painter.fillRect(self.rect(), QColor(PREVIEW))
 
         if self._pixmap is None:
-            painter.setPen(QColor("#6b7280"))
-            painter.setFont(QFont(painter.font().family(), 12))
-            painter.drawText(self.rect(), Qt.AlignCenter,
-                             "Select images, then click “Analyze” to start")
             return
 
         pixmap = self._result_pixmap or self._pixmap
@@ -209,7 +285,6 @@ class PreviewCanvas(QWidget):
         painter.setRenderHint(QPainter.SmoothPixmapTransform, self._scale < 1.0)
         if self._result_pixmap is not None and self._split < 0.999:
             # Wipe comparison: original on the right, result on the left.
-            # Right-drag inside the canvas moves the divider (no extra widget).
             painter.drawPixmap(0, 0, self._pixmap)
             iw = self._pixmap.width()
             ih = self._pixmap.height()
@@ -230,29 +305,42 @@ class PreviewCanvas(QWidget):
             x = self._offset.x() + self._pixmap.width() * self._scale * self._split
             top = self._offset.y()
             bottom = top + self._pixmap.height() * self._scale
-            painter.setPen(QPen(QColor("#f0a03c"), 2))
+            painter.setPen(QPen(QColor(MUTED), 2))
             painter.drawLine(QPointF(x, top), QPointF(x, bottom))
 
         painter.setRenderHint(QPainter.Antialiasing, True)
         if self.show_region_boxes:
-            for region in self._regions:
-                self._paint_region(painter, region)
+            for index, region in enumerate(self._regions, start=1):
+                self._paint_region(painter, region, index)
         if self.show_region_boxes and self._selected >= 0:
             region = self.selected_region()
             if region is not None:
                 self._paint_handles(painter, self._effective_rect(region))
 
-        painter.setPen(QColor("#7c8394"))
-        painter.setFont(QFont(painter.font().family(), 9))
-        painter.drawText(8, self.height() - 8,
-                         f"{int(round(self._scale * 100))}%  ·  scroll to zoom  ·  "
-                         "drag to pan  ·  drag a corner to resize")
+    def _region_tag(self, region: Region, index: int) -> str:
+        name = ""
+        if region.match is not None:
+            text = " ".join((region.match.text or "").split())
+            keyword = " ".join((region.match.keyword or "").split())
+            name = text or keyword
+            if keyword and text and keyword.casefold() not in text.casefold():
+                name = keyword
+        if len(name) > 26:
+            name = name[:25].rstrip() + "…"
+        percent = int(round(region.confidence * 100))
+        if region.kind is RegionKind.UNCERTAIN:
+            label = f"{index} · Needs review · {percent}%"
+        elif name:
+            label = f"{index} · {name} · {percent}%"
+        else:
+            label = f"{index} · {percent}%"
+        return label
 
-    def _paint_region(self, painter: QPainter, region: Region) -> None:
+    def _paint_region(self, painter: QPainter, region: Region, index: int) -> None:
         rect = self._to_screen_rect(self._effective_rect(region))
         if rect.isEmpty():
             return
-        color = COLORS.get(region.kind, QColor("#c084fc"))
+        color = COLORS.get(region.kind, QColor(REGION))
         selected = region.id == self._selected
         width = 2.4 if selected else 1.4
 
@@ -262,41 +350,41 @@ class PreviewCanvas(QWidget):
             pen = QPen(color, width)
         if not region.enabled:
             dim = QColor(color)
-            dim.setAlpha(110)
+            dim.setAlpha(140)
             pen.setColor(dim)
-            pen.setStyle(Qt.DotLine)
+            if region.kind is not RegionKind.UNCERTAIN:
+                pen.setStyle(Qt.DotLine)
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(rect)
 
         if selected or self._scale > 0.25:
-            label = region.kind.value
-            if region.kind is RegionKind.UNCERTAIN:
-                label = "needs review"
-            if not region.enabled:
-                label += " · off"
-            label += f"  {region.confidence:.2f}"
+            label = self._region_tag(region, index)
             font = QFont(painter.font().family(), 9)
             font.setBold(selected)
             painter.setFont(font)
             metrics = painter.fontMetrics()
-            tw = metrics.horizontalAdvance(label) + 10
-            th = metrics.height() + 2
-            chip = QRectF(rect.left(), max(0.0, rect.top() - th - 2), tw, th)
+            tw = metrics.horizontalAdvance(label) + 12
+            th = metrics.height() + 4
+            x = max(2.0, min(rect.left(), self.width() - tw - 2))
+            y = rect.top() - th - 4
+            if y < 2:
+                y = rect.top() + 2
+            chip = QRectF(x, y, tw, th)
             chip_color = QColor(color)
-            chip_color.setAlpha(215)
+            chip_color.setAlpha(235 if region.enabled else 160)
             painter.setPen(Qt.NoPen)
             painter.setBrush(chip_color)
-            painter.drawRoundedRect(chip, 3, 3)
-            painter.setPen(QColor("#0d1220"))
-            painter.drawText(chip.adjusted(5, 0, 0, 0), Qt.AlignVCenter | Qt.AlignLeft, label)
+            painter.drawRoundedRect(chip, 4, 4)
+            painter.setPen(QColor(PREVIEW))
+            painter.drawText(chip.adjusted(6, 0, 0, 0), Qt.AlignVCenter | Qt.AlignLeft, label)
 
     def _paint_handles(self, painter: QPainter, rect) -> None:
         screen = self._to_screen_rect(rect)
         if screen.width() < 12 or screen.height() < 12:
             return
-        painter.setPen(QPen(QColor("#0d1220"), 1))
-        painter.setBrush(QColor("#ffffff"))
+        painter.setPen(QPen(QColor(PREVIEW), 1))
+        painter.setBrush(QColor(TEXT))
         for fx, fy in HANDLES.values():
             cx = screen.left() + fx * screen.width()
             cy = screen.top() + fy * screen.height()
@@ -328,6 +416,12 @@ class PreviewCanvas(QWidget):
         if self._pixmap is None:
             return
         pos = event.position()
+        if (self._compare_mode and self._result_pixmap is not None
+                and event.button() in (Qt.LeftButton, Qt.RightButton)):
+            self._wipe_drag = True
+            self._update_split(pos)
+            self.setCursor(Qt.SplitHCursor)
+            return
         if event.button() == Qt.RightButton and self._result_pixmap is not None:
             self._wipe_drag = True
             self._update_split(pos)
@@ -430,9 +524,9 @@ class PreviewCanvas(QWidget):
         self._drag_rect = rect
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
-        if self._wipe_drag and event.button() == Qt.RightButton:
+        if self._wipe_drag and event.button() in (Qt.LeftButton, Qt.RightButton):
             self._wipe_drag = False
-            self.setCursor(Qt.ArrowCursor)
+            self.setCursor(Qt.SplitHCursor if self._compare_mode else Qt.ArrowCursor)
             return
         if self._panning and event.button() in (Qt.MiddleButton, Qt.LeftButton):
             self._panning = False
@@ -481,3 +575,4 @@ class PreviewCanvas(QWidget):
         super().resizeEvent(event)
         if self._fit:
             self._recalc_fit()
+        self._position_overlays()

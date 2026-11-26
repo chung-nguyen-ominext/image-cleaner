@@ -11,7 +11,9 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import (
+    QApplication, QComboBox, QLabel, QSpinBox, QToolButton,
+)
 
 from src.core.models import AnalysisResult, Region, RegionKind
 from src.ui.main_window import MainWindow
@@ -57,7 +59,7 @@ def _make_window_with_region(window, kind=RegionKind.TEXT, source="ocr"):
 def test_window_builds(qt_app):
     win = MainWindow()
     for name in ("analyze_btn", "save_btn", "save_all_btn", "preview_btn",
-                 "region_table", "file_list", "keyword_edit", "progress"):
+                 "region_list", "file_list", "keyword_edit", "progress"):
         assert getattr(win, name) is not None
 
 
@@ -80,8 +82,11 @@ def test_uncertain_never_bulk_enabled(window):
     window._set_all_enabled(True)
     assert region.enabled is False
 
-    checkbox = window.region_table.item(0, 0)
-    checkbox.setCheckState(Qt.Checked)
+    card = window.region_list.cards()[0]
+    # Regression: the card used to set a dynamic property literally named
+    # "enabled", which disabled the widget and made review cards unusable.
+    assert card.isEnabled()
+    card.check.setChecked(True)
 
     assert region.enabled is True
     assert region.kind in (RegionKind.ELEMENT, RegionKind.TEXT)
@@ -89,7 +94,7 @@ def test_uncertain_never_bulk_enabled(window):
 
 def test_region_policy_combo_sets_per_region_override(window):
     entry, region = _make_window_with_region(window, RegionKind.ELEMENT, source="color")
-    combo = window.region_table.cellWidget(0, 3)
+    combo = window.region_list.cards()[0].mode
     assert combo is not None
     combo.setCurrentIndex(combo.findData("text"))
     QApplication.instance().processEvents()
@@ -102,7 +107,7 @@ def test_region_policy_combo_sets_per_region_override(window):
 
 def test_region_margin_spin_expands_and_shrinks_selected_region(window):
     entry, region = _make_window_with_region(window, RegionKind.TEXT)
-    spin = window.region_table.cellWidget(0, 4)
+    spin = window.region_list.cards()[0].padding
     assert spin is not None
     spin.setValue(5)
     QApplication.instance().processEvents()
@@ -116,28 +121,22 @@ def test_region_margin_spin_expands_and_shrinks_selected_region(window):
 def test_advanced_form_uses_width_and_stays_left(window):
     window.advanced_toggle_btn.setChecked(True)
     QApplication.instance().processEvents()
+    window.advanced_panel.show()
+    QApplication.instance().processEvents()
 
-    outer = window.advanced_panel.layout()
-    assert outer.spacing() >= 8
+    assert window.advanced_panel.objectName() == "advanced_dialog"
+    # The output path is the one long line that uses the dialog width.
+    assert window.output_edit.width() > window.preset_combo.width()
 
-    # The output path is one long line that uses the panel width.
-    assert window.output_edit.width() > 800
-    # The left column still hugs the left edge.
-    preset_x = window.preset_combo.mapTo(
-        window, window.rect().topLeft()
-    ).x()
-    assert preset_x < 220, preset_x
-    # Both right-hand controls end flush with the panel.
-    assert window.engine_combo.x() + window.engine_combo.width() == (
-        window.match_combo.x() + window.match_combo.width()
-    )
-
-    labels = {label.text(): label for label in window.findChildren(QLabel)}
+    labels = {
+        label.text(): label
+        for label in window.advanced_panel.findChildren(QLabel)
+    }
     assert bool(labels["Output folder"].alignment() & Qt.AlignRight)
 
     from src.ui.controls import HintLabel
 
-    for hint in window.findChildren(HintLabel):
+    for hint in window.advanced_panel.findChildren(HintLabel):
         assert hint.sizePolicy().horizontalPolicy().name == "Maximum"
 
 
@@ -157,7 +156,7 @@ def test_icons_come_from_qtawesome_library(window):
 def test_placeholder_is_dimmer_than_typed_text(window):
     from src.ui.theme import PLACEHOLDER, TEXT
 
-    color = window.keyword_edit.palette().color(
+    color = window.keyword_edit._editor.palette().color(
         QPalette.ColorRole.PlaceholderText
     )
     assert color.name() == PLACEHOLDER.lower()
@@ -185,8 +184,9 @@ def test_dropdowns_and_spinners_draw_visible_arrows(window):
     assert isinstance(window.padding_spin, ArrowSpinBox)
 
     entry, _region = _make_window_with_region(window)
-    assert isinstance(window.region_table.cellWidget(0, 3), ArrowComboBox)
-    assert isinstance(window.region_table.cellWidget(0, 4), ArrowSpinBox)
+    card = window.region_list.cards()[0]
+    assert isinstance(card.mode, QComboBox)
+    assert isinstance(card.padding, QSpinBox)
 
     apply_theme(QApplication.instance())
     QApplication.instance().processEvents()
@@ -216,25 +216,44 @@ def test_dropdowns_and_spinners_draw_visible_arrows(window):
         assert max_light > 100, f"spinbox chevron at {quarter} is not painted"
 
 
-def test_keyword_placeholder_hides_on_focus_and_returns_when_empty(window):
-    from PySide6.QtCore import QEvent
-    from PySide6.QtGui import QFocusEvent
+def test_keyword_chip_input_commits_on_enter_and_comma(window):
+    from PySide6.QtTest import QTest
 
+    app = QApplication.instance()
+    window.show()
     edit = window.keyword_edit
-    hint = edit._hint
+    hint = edit.placeholderText()
     assert hint
     edit.clear()
+    editor = edit._editor
+    editor.setFocus()
+    app.processEvents()
 
-    edit.focusInEvent(QFocusEvent(QEvent.FocusIn))
-    assert edit.placeholderText() == "", "placeholder must disappear while typing"
+    QTest.keyClicks(editor, "VPN")
+    QTest.keyClick(editor, Qt.Key_Return)
+    app.processEvents()
+    assert edit.keywords() == ["VPN"]
+    assert editor.text() == ""
+    assert editor.placeholderText() == hint
 
-    edit.focusOutEvent(QFocusEvent(QEvent.FocusOut))
-    assert edit.placeholderText() == hint, "empty field gets the hint back"
+    QTest.keyClicks(editor, "Internal,")
+    app.processEvents()
+    assert edit.keywords() == ["VPN", "Internal"]
+    assert editor.text() == ""
 
-    edit.clear_ghost_guard()
-    edit.setPlainText("VPN")
-    edit.focusOutEvent(QFocusEvent(QEvent.FocusOut))
-    assert edit.placeholderText() == ""
+    # Backspace on an empty editor removes the last chip and nothing more.
+    QTest.keyClick(editor, Qt.Key_Backspace)
+    app.processEvents()
+    assert edit.keywords() == ["VPN"]
+
+    # A chip's close button removes exactly that keyword.
+    chip = edit._chips_layout.itemAt(0).widget()
+    close = chip.findChild(QToolButton, "chip_close")
+    assert close is not None
+    close.click()
+    app.processEvents()
+    assert edit.keywords() == []
+    assert editor.placeholderText() == hint
 
 
 def test_cleared_inputs_restore_placeholder_after_focus_out(window):
@@ -242,84 +261,47 @@ def test_cleared_inputs_restore_placeholder_after_focus_out(window):
 
     app = QApplication.instance()
     window.show()
-    cases = [
-        (window.keyword_edit, window.keyword_edit.toPlainText,
-         window.keyword_edit.setPlainText, window.keyword_edit._hint),
-        (window.output_edit, window.output_edit.text,
-         window.output_edit.setText, window.output_edit.placeholderText()),
-    ]
-    for edit, get_text, set_text, hint in cases:
-        assert not edit.testAttribute(Qt.WA_InputMethodEnabled)
-        # First-flow: type and delete before ever leaving the field.
-        edit.clear()
-        edit.setFocus()
-        app.processEvents()
-        QTest.keyClicks(edit, "abcd")
-        for _ in range(4):
-            QTest.keyClick(edit, Qt.Key_Backspace)
-        app.processEvents()
 
-        window.add_files_btn.setFocus()
-        app.processEvents()
+    editor = window.keyword_edit._editor
+    hint = window.keyword_edit.placeholderText()
+    editor.setFocus()
+    app.processEvents()
+    QTest.keyClicks(editor, "abcd")
+    for _ in range(4):
+        QTest.keyClick(editor, Qt.Key_Backspace)
+    window.add_files_btn.setFocus()
+    app.processEvents()
+    assert editor.text() == ""
+    assert editor.placeholderText() == hint
 
-        assert get_text() == ""
-        assert edit.placeholderText() == hint
+    output = window.output_edit
+    output_hint = output.placeholderText()
+    output.clear()
+    output.setFocus()
+    app.processEvents()
+    QTest.keyClicks(output, "abcd")
+    for _ in range(4):
+        QTest.keyClick(output, Qt.Key_Backspace)
+    window.add_files_btn.setFocus()
+    app.processEvents()
+    assert output.text() == ""
+    assert output.placeholderText() == output_hint
 
-        # Second-flow: leave the field while non-empty, come back and clear.
-        edit.setFocus()
-        app.processEvents()
-        QTest.keyClicks(edit, "abcd")
-        window.add_files_btn.setFocus()
-        app.processEvents()
-
-        edit.setFocus()
-        app.processEvents()
-        for _ in range(4):
-            QTest.keyClick(edit, Qt.Key_Backspace)
-        window.add_files_btn.setFocus()
-        app.processEvents()
-
-        assert get_text() == ""
-        assert edit.placeholderText() == hint
-
-        # A single legitimate character typed into an empty field must stay.
-        edit.clear()
-        edit.setFocus()
-        app.processEvents()
-        QTest.keyClicks(edit, "a")
-        window.add_files_btn.setFocus()
-        app.processEvents()
-        assert get_text() == "a"
-        edit.clear()
-
-        # While the post-clear guard is active, an IME commit is discarded.
-        edit._blurred_empty = True
-        set_text("a")
-        assert get_text() == ""
-        edit._blurred_empty = False
-        assert edit.placeholderText() == hint
-
-        # And a delayed commit that arrives while the timers are still active.
-        edit.clear()
-        edit.setFocus()
-        app.processEvents()
-        QTest.keyClicks(edit, "abcd")
-        for _ in range(4):
-            QTest.keyClick(edit, Qt.Key_Backspace)
-        window.add_files_btn.setFocus()
-        app.processEvents()
-        QTest.qWait(50)
-        set_text("a")
-        QTest.qWait(400)
-        assert get_text() == ""
-        assert edit.placeholderText() == hint
+    # A single legitimate character survives the focus change.
+    output.setFocus()
+    app.processEvents()
+    QTest.keyClicks(output, "a")
+    window.add_files_btn.setFocus()
+    app.processEvents()
+    assert output.text() == "a"
+    output.clear()
 
 
-def test_only_three_labels_carry_a_grey_info_icon(window):
+def test_only_two_labels_carry_a_grey_info_icon(window):
     from src.ui.controls import HintLabel
 
     hints = {hint.text(): hint for hint in window.findChildren(HintLabel)}
-    assert set(hints) == {"Keywords", "Engine", "Padding"}
+    assert set(hints) == {"Engine", "Padding"}
 
     for hint in hints.values():
         assert hint.badge.text() == ""
@@ -333,11 +315,12 @@ def test_only_three_labels_carry_a_grey_info_icon(window):
             image.pixelColor(x, y)
             for x in range(image.width())
             for y in range(image.height())
-            if image.pixelColor(x, y).alpha() > 0
+            if image.pixelColor(x, y).alpha() > 32
         ]
         assert greys
+        # Cool grey, close to neutral: no coloured icon in the form.
         assert all(max(c.red(), c.green(), c.blue())
-                   - min(c.red(), c.green(), c.blue()) <= 2 for c in greys)
+                   - min(c.red(), c.green(), c.blue()) <= 40 for c in greys)
         # ...and the text label alone must not pop a tooltip.
         assert hint.label.toolTip() == ""
 
@@ -376,12 +359,15 @@ def test_no_regions_table_empty(window):
 
     window._add_paths([Path(FIXTURE)])
     window._show_entry(window._all_entries()[0])
-    assert window.region_table.rowCount() == 0
+    assert window.region_list.cards() == []
+    assert window.region_list.placeholder.isVisible()
 
 
 def test_input_folder_button_is_unambiguous(window):
-    assert window.add_folder_btn.text() == "Image folder…"
-    assert "input" in window.add_folder_btn.toolTip()
+    assert window.add_folder_btn.text() == "Choose folder"
+    assert "folder" in window.add_folder_btn.toolTip().casefold()
+    assert not window.add_folder_btn.icon().isNull()
+    assert window.add_folder_btn.accessibleName() == "Add image folder"
 
 
 def test_disabled_analyze_button_explains_next_step(window):
@@ -391,14 +377,16 @@ def test_disabled_analyze_button_explains_next_step(window):
     window.keyword_edit.setPlainText("")
     window._update_action_state()
     assert not window.analyze_btn.isEnabled()
-    assert "Select images" in window.task_label.text()
-    assert "Analyze" in window.task_label.text()
+    assert window.analyze_btn.toolTip() == (
+        "Add images and at least one keyword first"
+    )
 
     window._add_paths([Path(FIXTURE)])
     window.keyword_edit.setPlainText("VPN")
     window._update_action_state()
     assert window.analyze_btn.isEnabled()
-    assert window.task_label.text() == "Ready"
+    assert window.analyze_btn.toolTip() == ""
+    assert window.analyze_btn.text() == "Analyze 1 image"
 
 
 def test_advanced_dropdowns_share_left_edge_and_width(window):
@@ -433,12 +421,23 @@ def test_analyzed_image_defaults_to_result_segment(window, monkeypatch):
     assert window.original_btn.isChecked()
     assert not window.result_btn.isChecked()
 
-    # ...but selecting an analyzed image again goes back to its result.
+    # ...and that choice sticks while switching images: only the picture
+    # changes, the segment does not flip back to Result behind the user.
     window._show_entry(entry)
+    assert window.original_btn.isChecked()
+    assert not window.result_btn.isChecked()
+
+    # Asking for Result again brings the analysed view back.
+    window.result_btn.setChecked(True)
+    QApplication.instance().processEvents()
     assert window.result_btn.isChecked()
+    assert not window.original_btn.isChecked()
 
 
 def test_uncertain_badge_and_filter(window):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtTest import QTest
+
     entry, _region = _make_window_with_region(
         window, RegionKind.UNCERTAIN, source="color"
     )
@@ -448,28 +447,45 @@ def test_uncertain_badge_and_filter(window):
     )
     entry.result.regions.append(text_region)
     window._populate_regions_table(entry.result.regions)
+    QApplication.instance().processEvents()
 
-    holder = window.region_table.cellWidget(0, 1)
-    assert holder is not None
-    badge = holder.findChild(QLabel, "uncertain_badge")
-    assert badge is not None and badge.text() == "Needs review"
-    assert window.region_table.cellWidget(1, 1) is None
-    assert "need review" in window.regions_title.text()
+    cards = {card.region.id: card for card in window.region_list.cards()}
+    assert cards[0].review_tag.isVisible()
+    assert cards[0].review_tag.text() == "Needs review"
+    assert not cards[1].review_tag.isVisible()
+    assert window.regions_title.text() == "Detected regions 2"
+
+    # Selecting another region first makes the click below meaningful.
+    window.region_list.select_region(1, emit=True)
+    QApplication.instance().processEvents()
+    assert window.preview.selected_region_id() == 1
+
+    # A review card must be clickable: it selects its box on the image and
+    # expands its details, deselecting the other cards.
+    assert cards[0].isEnabled()
+    QTest.mouseClick(
+        cards[0], Qt.LeftButton, Qt.NoModifier,
+        QPoint(cards[0].width() // 2, cards[0].height() // 2),
+    )
+    QApplication.instance().processEvents()
+    assert window.preview.selected_region_id() == 0
+    assert cards[0].details.isVisible()
+    assert not cards[1].details.isVisible()
 
     window.uncertain_filter.setChecked(True)
     QApplication.instance().processEvents()
-    assert not window.region_table.isRowHidden(0)
-    assert window.region_table.isRowHidden(1)
+    assert cards[0].isVisible()
+    assert not cards[1].isVisible()
 
     window.uncertain_filter.setChecked(False)
     QApplication.instance().processEvents()
-    assert not window.region_table.isRowHidden(1)
+    assert cards[1].isVisible()
 
-    # Approving the uncertain region removes the badge and shows its type.
-    window.region_table.item(0, 0).setCheckState(Qt.Checked)
+    # Approving the uncertain region clears the review badge and shows its type.
+    cards[0].check.setChecked(True)
     QApplication.instance().processEvents()
-    assert window.region_table.cellWidget(0, 1) is None
-    assert window.region_table.item(0, 1).text() in ("Text", "Element")
+    assert not cards[0].review_tag.isVisible()
+    assert cards[0].kind_tag.text() in ("Text", "Button")
 
 
 def test_zoom_controls(window):
@@ -477,7 +493,7 @@ def test_zoom_controls(window):
 
     assert not window.zoom_in_btn.isEnabled()
     assert window.zoom_fit_btn.text() == "Fit"
-    assert window.zoom_100_btn.text() == "100%"
+    assert window.zoom_100_btn.text() == "1:1"
 
     window._add_paths([Path(FIXTURE)])
     window._show_entry(window._all_entries()[0])
@@ -501,10 +517,14 @@ def test_zoom_controls(window):
 
 
 def test_preview_and_regions_have_gaps_from_splitter(window):
-    work = window.work_panel.layout().contentsMargins()
-    assert work.left() >= 6 and work.right() >= 6
-    assert window.preview_wrap.layout().contentsMargins().bottom() >= 6
-    assert window.regions_wrap.layout().contentsMargins().top() >= 6
+    # The three panes are separated by a wide splitter handle, and each panel
+    # keeps its own inner padding instead of touching the preview canvas.
+    assert window.body_splitter.count() == 3
+    assert window.body_splitter.handleWidth() >= 8
+    assert window.body_splitter.widget(1) is window.preview_panel
+    assert window.preview_panel.objectName() == "preview_panel"
+    assert window.right_panel.layout().contentsMargins().left() >= 8
+    assert window.left_panel.layout().contentsMargins().right() >= 8
 
 
 def test_info_icon_hugs_its_label(window):
@@ -513,7 +533,7 @@ def test_info_icon_hugs_its_label(window):
     from src.ui.controls import HintLabel
 
     hints = {h.text(): h for h in window.findChildren(HintLabel)}
-    for name in ("Padding", "Engine", "Keywords"):
+    for name in ("Padding", "Engine"):
         hint = hints[name]
         gap = hint.badge.geometry().left() - hint.label.geometry().right() - 1
         assert 0 <= gap <= 6, (name, gap)
@@ -582,8 +602,109 @@ def test_result_button_disabled_until_image_selected(window):
 
     window._add_paths([Path(FIXTURE)])
     window._show_entry(window._all_entries()[0])
+    # Selected but not analyzed: there is no Result to show yet.
+    assert not window.result_btn.isEnabled()
+
+    entry = window._all_entries()[0]
+    entry.result = AnalysisResult(FIXTURE, 100, 100, regions=[])
+    window._show_entry(entry)
     assert window.result_btn.isEnabled()
 
     window._show_entry(None)
     assert not window.result_btn.isEnabled()
     assert window.original_btn.isChecked()
+
+
+def test_preview_fills_leftover_width_when_panels_toggle(window):
+    app = QApplication.instance()
+    window._set_panel_collapsed("left", False)
+    window._set_panel_collapsed("right", False)
+    window.resize(1200, 800)
+    app.processEvents()
+
+    def assert_fills(tag: str) -> None:
+        app.processEvents()
+        app.processEvents()
+        sizes = window.body_splitter.sizes()
+        total = (
+            window.body_splitter.width()
+            - 2 * window.body_splitter.handleWidth()
+        )
+        assert abs(sum(sizes) - total) <= 1, (tag, sizes, total)
+        assert sizes[1] == total - sizes[0] - sizes[2], (tag, sizes)
+
+    window.left_collapse_btn.click()
+    assert_fills("images closed")
+    window.right_collapse_btn.click()
+    assert_fills("regions closed")
+
+    # The bug only showed up after the window was resized while collapsed:
+    # reopening then restored stale absolute widths and left a blank strip.
+    window.resize(1440, 900)
+    app.processEvents()
+    app.processEvents()
+    window.left_collapse_btn.click()
+    assert_fills("images reopened after resize")
+    window.right_collapse_btn.click()
+    assert_fills("regions reopened after resize")
+
+    window.left_collapse_btn.click()
+    window.right_collapse_btn.click()
+    assert_fills("both closed")
+    window.right_collapse_btn.click()
+    assert_fills("regions reopened from rails")
+
+    # Leave both panes open for the following tests / next run.
+    window._set_panel_collapsed("left", False)
+    window._set_panel_collapsed("right", False)
+    assert_fills("both reopened")
+    # Reopening restores the remembered panel widths (not the splitter's
+    # initial size hints), so the preview keeps the rest.
+    assert window.body_splitter.sizes()[0] == window._left_width
+    assert window.body_splitter.sizes()[2] == window._right_width
+
+
+def test_collapsed_panel_arrow_is_not_clipped(window):
+    window._set_panel_collapsed("left", True)
+    window._set_panel_collapsed("right", True)
+    QApplication.instance().processEvents()
+    QApplication.instance().processEvents()
+
+    for button, panel in (
+        (window.left_collapse_btn, window.left_panel),
+        (window.right_collapse_btn, window.right_panel),
+    ):
+        host = button.parentWidget()
+        assert button.x() >= 0
+        assert button.x() + button.width() <= host.width(), (
+            button.x(), button.width(), host.width()
+        )
+        assert host.x() + button.x() + button.width() <= panel.width()
+
+
+def test_analyze_this_image_only_keeps_the_current_selection(window, monkeypatch):
+    from pathlib import Path
+
+    window._add_paths([Path(FIXTURE), Path("tests/fixtures/no_match.png")])
+    window.file_list.setCurrentRow(1)
+    entry = window._all_entries()[1]
+
+    captured = {}
+
+    def fake_analyze(entries, **kwargs):
+        captured["entries"] = list(entries)
+        captured.update(kwargs)
+
+    monkeypatch.setattr(window, "_analyze_entries", fake_analyze)
+    window._analyze_current()
+    assert [item.path for item in captured["entries"]] == [entry.path]
+    assert captured["select_first"] is False
+
+    # Completion must not jump back to the first image in "this image" mode.
+    window._start_worker = lambda *args, **kwargs: None
+    result = AnalysisResult(str(entry.path.resolve()), 100, 100, regions=[])
+    window._on_analyze_done(
+        [(str(entry.path.resolve()), result, "")], select_first=False
+    )
+    assert window.file_list.currentRow() == 1
+    assert window._all_entries()[1].result is not None

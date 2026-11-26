@@ -12,22 +12,30 @@ from functools import lru_cache
 import qtawesome as qta
 from PySide6.QtGui import QIcon, QPixmap
 
-from src.ui.theme import MUTED
+from src.ui.theme import DISABLED, MUTED
 
 # Semantic names: call sites do not depend on the Font Awesome naming scheme.
 NAMES: dict[str, str] = {
     "info": "fa5s.info-circle",
+    "help": "fa5s.question-circle",
     "chevron_down": "fa5s.chevron-down",
     "chevron_up": "fa5s.chevron-up",
+    "chevron_left": "fa5s.chevron-left",
+    "chevron_right": "fa5s.chevron-right",
     "images": "fa5s.images",
+    "image": "fa5s.image",
     "folder": "fa5s.folder-open",
-    "analyze": "fa5s.search",
+    "upload": "fa5s.arrow-up",
+    "lock": "fa5s.lock",
+    "analyze": "fa5s.play",
     "save": "fa5s.save",
     "cancel": "fa5s.times",
     "settings": "fa5s.cog",
+    "sliders": "fa5s.sliders-h",
     "log": "fa5s.terminal",
     "original": "fa5s.image",
     "result": "fa5s.magic",
+    "compare": "fa5s.columns",
     "remove": "fa5s.trash-alt",
     "fit": "fa5s.expand",
     "plus": "fa5s.plus",
@@ -39,7 +47,7 @@ NAMES: dict[str, str] = {
 
 def icon(name: str, color: str = MUTED) -> QIcon:
     """A themed icon by semantic name."""
-    return qta.icon(NAMES[name], color=color, color_disabled="#5d6270")
+    return qta.icon(NAMES[name], color=color, color_disabled=DISABLED)
 
 
 @lru_cache(maxsize=128)

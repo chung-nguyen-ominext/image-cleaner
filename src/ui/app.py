@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor
 from PySide6.QtWidgets import QApplication
 
-from src.ui.theme import apply_theme
+from src.ui.theme import ACCENT, BG, apply_theme
 from src.ui.main_window import MainWindow
 
 
@@ -20,9 +20,9 @@ def _make_icon() -> QIcon:
     painter = QPainter(pix)
     painter.setRenderHint(QPainter.Antialiasing, True)
     painter.setPen(Qt.NoPen)
-    painter.setBrush(QColor("#4f8cff"))
+    painter.setBrush(QColor(ACCENT))
     painter.drawRoundedRect(6, 6, 52, 52, 12, 12)
-    painter.setBrush(QColor("#17181c"))
+    painter.setBrush(QColor(BG))
     painter.drawRoundedRect(14, 16, 36, 8, 3, 3)
     painter.drawRoundedRect(14, 30, 24, 6, 3, 3)
     painter.drawRoundedRect(14, 41, 32, 6, 3, 3)
