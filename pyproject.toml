@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imagecleaner"
+version = "0.1.0"
+description = "Offline image cleaner: find user-defined text/UI regions and remove them with inpainting"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26,<3",
+    "opencv-python-headless>=4.8",
+    "Pillow>=10.0",
+    "rapidocr>=3.0",
+    # onnxruntime 1.24+ dropped macOS x86_64 wheels; keep Intel Macs on 1.23.x.
+    "onnxruntime>=1.17; sys_platform != 'darwin' or platform_machine == 'arm64'",
+    "onnxruntime>=1.17,<1.24; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+gui = ["PySide6>=6.7", "qtawesome>=1.4"]
+
+[project.scripts]
+imagecleaner = "src.ui.app:main"
+imagecleaner-cli = "src.cli:main"
+imagecleaner-selftest = "src.selftest:main"
+
+[tool.setuptools]
+packages = ["src", "src.core", "src.engines", "src.ui", "src.utils", "src.config"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "real_ocr: requires the bundled RapidOCR model (slower)",
+]

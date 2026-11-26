@@ -1,0 +1,17 @@
+{
+  "image": "e4.png",
+  "keywords": ["VPN"],
+  "page_bgr": [255, 255, 255],
+  "header_vpn_bbox": [308, 23, 27, 18],
+  "retrieve_vpn_bbox": [203, 92, 33, 20],
+  "disconnect_vpn_bbox": [226, 254, 34, 20],
+  "bubble_vpn_bbox": [112, 354, 35, 22],
+  "bubble_fill_bgr": [252, 248, 239],
+  "bottom_vpn_bbox": [135, 527, 33, 20],
+  "proton_word_bbox": [51, 354, 53, 22],
+  "speak1_bbox": [83, 325, 53, 22],
+  "otherwise_bbox": [65, 426, 83, 20],
+  "endif_bbox": [61, 626, 33, 23],
+  "connected_chip_bbox": [108, 184, 91, 20],
+  "search_bbox": [78, 723, 48, 21]
+}

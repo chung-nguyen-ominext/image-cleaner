@@ -1,0 +1,24 @@
+# ImageCleaner – pinned build/development requirements (Python 3.11+).
+# Install:  .venv/bin/pip install -r requirements.txt
+#
+# The app itself runs fully offline on CPU; LaMa is optional and fetched once
+# at build time with scripts/fetch_models.py.
+
+# Core image + OCR pipeline
+numpy==2.5.5
+opencv-python-headless==5.1.0.95
+Pillow==13.0.0
+rapidocr==3.10.0
+# onnxruntime 1.24+ no longer publishes macOS x86_64 wheels, so Intel Macs
+# stay on the last release that still does (1.23.0).
+onnxruntime==1.32.0; sys_platform != "darwin" or platform_machine == "arm64"
+onnxruntime==1.23.0; sys_platform == "darwin" and platform_machine == "x86_64"
+
+# Desktop GUI + icon font
+PySide6==6.12.0
+QtAwesome==1.4.2
+QtPy==2.4.3
+
+# Build and verification tools
+pyinstaller==6.22.3
+pytest==9.2.0

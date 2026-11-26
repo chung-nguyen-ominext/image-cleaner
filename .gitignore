@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Build artifacts
+build/
+dist/
+*.spec.bak
+
+# Large model fetched by scripts/fetch_models.py (do not commit: >100 MB)
+models/lama/*.onnx
+
+# App data / logs written at runtime
+*.log
+.DS_Store
+.venv

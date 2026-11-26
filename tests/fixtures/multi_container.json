@@ -1,0 +1,52 @@
+{
+  "left_page_bgr": [
+    0,
+    0,
+    0
+  ],
+  "left_card_bgr": [
+    98,
+    94,
+    92
+  ],
+  "left_card_bbox": [
+    50,
+    120,
+    430,
+    180
+  ],
+  "left_button_bbox": [
+    70,
+    150,
+    390,
+    80
+  ],
+  "left_text_bbox": [
+    95,
+    176,
+    66,
+    20
+  ],
+  "right_page_bgr": [
+    255,
+    255,
+    255
+  ],
+  "right_box_bgr": [
+    235,
+    99,
+    37
+  ],
+  "right_box_bbox": [
+    560,
+    120,
+    390,
+    110
+  ],
+  "right_text_bbox": [
+    590,
+    156,
+    66,
+    20
+  ]
+}

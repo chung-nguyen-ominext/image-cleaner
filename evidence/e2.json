@@ -1,0 +1,16 @@
+{
+  "image": "e2.png",
+  "keywords": ["VPN", "Upgrade now", "Internal Use Only", "Confidential"],
+  "page_bgr": [0, 0, 0],
+  "row_bgr": [25, 25, 23],
+  "icon_bgr": [255, 126, 0],
+  "red_frame_bbox": [14, 73, 253, 39],
+  "red_frame_strip_bbox": [100, 73, 120, 4],
+  "title_vpn_bbox": [59, 23, 24, 16],
+  "title_suffix_bbox": [88, 20, 160, 24],
+  "back_bbox": [0, 18, 30, 30],
+  "row_label_bbox": [56, 83, 32, 18],
+  "not_connected_bbox": [153, 85, 97, 14],
+  "icon_bbox": [24, 80, 24, 24],
+  "icon_inner_bbox": [27, 83, 18, 18]
+}
