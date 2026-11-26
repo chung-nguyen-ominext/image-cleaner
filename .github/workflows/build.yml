@@ -28,8 +28,8 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -46,7 +46,7 @@ jobs:
           if (-not $iscc) { throw "Inno Setup (ISCC.exe) not found on this runner" }
           $iscc.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Cache LaMa model
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: models/lama/lama_fp32.onnx
           key: lama-fp32-v1
@@ -62,7 +62,7 @@ jobs:
         run: python -m pytest -q
       - name: Build + verify + package
         run: python scripts/build_release.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ImageCleaner-${{ matrix.name }}
           path: |
@@ -79,11 +79,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*
           generate_release_notes: true

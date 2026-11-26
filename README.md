@@ -3,7 +3,7 @@
 **Offline** desktop tool that finds text/UI elements by user-entered keywords in screenshots,
 then erases them with inpainting. No image uploads, no cloud calls, runs on CPU.
 
-> Status: **0.2.0 – redesigned UI (three-pane workspace, region cards, external dark theme); 132 tests passed**.
+> Status: **0.2.1 – macOS shortcuts fixed (QActions in the native menu bar); 134 tests passed**.
 > Linux onedir bundle is verified with `SELFTEST OK`; Windows/macOS are built by the native CI workflows.
 > See `docs/STATUS.md`, `docs/OPTIMIZATION_PLAN.md` and `docs/REFACTOR_PLAN.md`.
 
@@ -52,7 +52,8 @@ Advanced options (engine, padding, matching, preset, output folder, log) live in
 accessible names and dropdowns/spinboxes have clear arrow indicators.
 
 Shortcuts: `Ctrl+O` add images, `Ctrl+Enter` analyze, `Ctrl+S` save all, `Ctrl+B` toggle panels,
-`Ctrl+0` fit to window, `Ctrl+1` 1:1.
+`Ctrl+0` fit to window, `Ctrl+1` 1:1. On macOS these are `⌘O`, `⌘Return`, `⌘S`, `⌘B`,
+`⌘0`, `⌘1` (the physical Control key works too).
 
 ### Keyword matching semantics (D7)
 - Case-insensitive, extra whitespace is ignored; every occurrence is found.
@@ -139,12 +140,12 @@ The script builds with `imagecleaner.spec`, runs `imagecleaner-selftest` inside 
 
 | OS | File to distribute | What the user does |
 | --- | --- | --- |
-| Windows x64 | `dist/ImageCleaner-Setup-0.2.0-x64.exe` | Download → run → Next → open from the Start Menu |
-| Windows (portable) | `dist/ImageCleaner-0.2.0-windows-x64.zip` | Unzip → run `ImageCleaner.exe` |
-| macOS Apple Silicon | `dist/ImageCleaner-0.2.0-macos-arm64.dmg` | Open the DMG → drag into Applications |
-| macOS Intel | `dist/ImageCleaner-0.2.0-macos-x64.dmg` | Open the DMG → drag into Applications |
-| Linux x64 | `dist/ImageCleaner-0.2.0-linux-x64.deb` | `sudo apt install ./ImageCleaner-0.2.0-linux-x64.deb` |
-| Linux (portable) | `dist/ImageCleaner-0.2.0-linux-x64.tar.gz` | Unzip → run `ImageCleaner` |
+| Windows x64 | `dist/ImageCleaner-Setup-0.2.1-x64.exe` | Download → run → Next → open from the Start Menu |
+| Windows (portable) | `dist/ImageCleaner-0.2.1-windows-x64.zip` | Unzip → run `ImageCleaner.exe` |
+| macOS Apple Silicon | `dist/ImageCleaner-0.2.1-macos-arm64.dmg` | Open the DMG → drag into Applications |
+| macOS Intel | `dist/ImageCleaner-0.2.1-macos-x64.dmg` | Open the DMG → drag into Applications |
+| Linux x64 | `dist/ImageCleaner-0.2.1-linux-x64.deb` | `sudo apt install ./ImageCleaner-0.2.1-linux-x64.deb` |
+| Linux (portable) | `dist/ImageCleaner-0.2.1-linux-x64.tar.gz` | Unzip → run `ImageCleaner` |
 
 The Windows installer uses Inno Setup (available on the `windows-2022` runner). macOS creates a
 standard `.app` then packages it into a `.dmg`. Linux creates a `.deb` with a menu shortcut and

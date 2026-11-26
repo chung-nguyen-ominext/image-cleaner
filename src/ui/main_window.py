@@ -5,13 +5,14 @@ from __future__ import annotations
 import copy
 import logging
 import re
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QEvent, QObject, QSettings, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
     QFrame, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QListWidget, QListWidgetItem,
@@ -43,6 +44,12 @@ from src.ui.workers import FunctionWorker
 from src.utils.image_utils import LoadedImage, SUPPORTED_EXTS, load_image
 
 log = logging.getLogger("imagecleaner.ui")
+
+
+def _shortcut_label(sequence: str) -> str:
+    """Shortcut text in the platform's native form (⌘O on macOS)."""
+    return QKeySequence(sequence).toString(QKeySequence.NativeText)
+
 
 BUILTIN_PRESETS: dict[str, list[str]] = {
     "VPN / network": ["VPN", "Proxy", "WireGuard", "OpenVPN"],
@@ -199,7 +206,7 @@ class MainWindow(QMainWindow):
         self.add_files_btn.setProperty("sizeClass", "toolbar")
         self.add_files_btn.setIcon(icons.icon("images"))
         self.add_files_btn.setAccessibleName("Add images")
-        self.add_files_btn.setToolTip("Add images (Ctrl+O)")
+        self.add_files_btn.setToolTip(f"Add images ({_shortcut_label('Ctrl+O')})")
         self.add_files_btn.clicked.connect(self._pick_files)
         row.addWidget(self.add_files_btn)
 
@@ -418,7 +425,9 @@ class MainWindow(QMainWindow):
         self.left_collapse_btn.setObjectName("panel_toggle")
         self.left_collapse_btn.setIcon(icons.icon("chevron_left"))
         self.left_collapse_btn.setIconSize(QSize(14, 14))
-        self.left_collapse_btn.setToolTip("Hide images panel (Ctrl+B)")
+        self.left_collapse_btn.setToolTip(
+            f"Hide images panel ({_shortcut_label('Ctrl+B')})"
+        )
         self.left_collapse_btn.setAccessibleName("Hide images panel")
         self.left_collapse_btn.setCursor(Qt.PointingHandCursor)
         header.addWidget(self.left_collapse_btn)
@@ -510,13 +519,15 @@ class MainWindow(QMainWindow):
         self.zoom_fit_btn = QPushButton("Fit")
         self.zoom_fit_btn.setObjectName("zoom_btn")
         self.zoom_fit_btn.setIcon(icons.icon("fit"))
-        self.zoom_fit_btn.setToolTip("Fit image to the preview (Ctrl+0)")
+        self.zoom_fit_btn.setToolTip(
+            f"Fit image to the preview ({_shortcut_label('Ctrl+0')})"
+        )
         self.zoom_fit_btn.clicked.connect(lambda: self.preview.fit_to_view())
         toolbar.addWidget(self.zoom_fit_btn)
 
         self.zoom_100_btn = QPushButton("1:1")
         self.zoom_100_btn.setObjectName("zoom_btn")
-        self.zoom_100_btn.setToolTip("View at 1:1 (Ctrl+1)")
+        self.zoom_100_btn.setToolTip(f"View at 1:1 ({_shortcut_label('Ctrl+1')})")
         self.zoom_100_btn.clicked.connect(lambda: self.preview.zoom_to(1.0))
         toolbar.addWidget(self.zoom_100_btn)
 
@@ -606,7 +617,9 @@ class MainWindow(QMainWindow):
         self.right_collapse_btn.setObjectName("panel_toggle")
         self.right_collapse_btn.setIcon(icons.icon("chevron_right"))
         self.right_collapse_btn.setIconSize(QSize(14, 14))
-        self.right_collapse_btn.setToolTip("Hide regions panel (Ctrl+B)")
+        self.right_collapse_btn.setToolTip(
+            f"Hide regions panel ({_shortcut_label('Ctrl+B')})"
+        )
         self.right_collapse_btn.setAccessibleName("Hide regions panel")
         self.right_collapse_btn.setCursor(Qt.PointingHandCursor)
         header.addWidget(self.right_collapse_btn)
@@ -803,7 +816,9 @@ class MainWindow(QMainWindow):
         title.setVisible(not collapsed)
         toggle.setIcon(icons.icon(inward if collapsed else outward))
         toggle.setToolTip(
-            f"Show {label} panel (Ctrl+B)" if collapsed else f"Hide {label} panel (Ctrl+B)"
+            f"Show {label} panel ({_shortcut_label('Ctrl+B')})"
+            if collapsed
+            else f"Hide {label} panel ({_shortcut_label('Ctrl+B')})"
         )
         if collapsed:
             panel.setMinimumWidth(48)
@@ -1005,19 +1020,52 @@ class MainWindow(QMainWindow):
         self._update_files_title()
 
     def _install_shortcuts(self) -> None:
-        for keys, slot in [
-            ("Ctrl+O", self._pick_files),
-            ("Ctrl+Return", self._analyze_all),
-            ("Ctrl+Enter", self._analyze_all),
-            ("Ctrl+R", self._analyze_all),
-            ("Ctrl+S", self._save_all),
-            ("Ctrl+Shift+S", self._save_all),
-            ("Ctrl+B", self._toggle_panels),
-            ("Ctrl+0", lambda: self.preview.fit_to_view()),
-            ("Ctrl+1", lambda: self.preview.zoom_to(1.0)),
-        ]:
-            shortcut = QShortcut(QKeySequence(keys), self)
-            shortcut.activated.connect(slot)
+        """Register window shortcuts in a way that also works on macOS.
+
+        QAction is used instead of QShortcut: on macOS Command-key equivalents
+        are delivered through the native menu bar, so the actions are also
+        placed in a small "Actions" menu there.  Keeping them in a list stops
+        Python from garbage-collecting them.
+        """
+        specs = (
+            ("Add images", ("Ctrl+O",), self._pick_files),
+            (
+                "Analyze",
+                ("Ctrl+Return", "Ctrl+Enter", "Ctrl+R"),
+                self._analyze_all,
+            ),
+            ("Save all", ("Ctrl+S", "Ctrl+Shift+S"), self._save_all),
+            ("Toggle panels", ("Ctrl+B",), self._toggle_panels),
+            ("Fit to window", ("Ctrl+0",), lambda: self.preview.fit_to_view()),
+            ("Actual size", ("Ctrl+1",), lambda: self.preview.zoom_to(1.0)),
+        )
+        is_mac = sys.platform == "darwin"
+        menu = self.menuBar().addMenu("Actions") if is_mac else None
+        self._shortcut_actions: list[QAction] = []
+        for title, keys, slot in specs:
+            action = QAction(title, self)
+            sequences: list[QKeySequence] = []
+            seen: set[str] = set()
+            for key in keys:
+                candidates = [key]
+                if is_mac and key.startswith("Ctrl+"):
+                    # Qt maps Ctrl to Command on macOS.  Also accept the
+                    # physical Control key so Windows-style chords work too.
+                    candidates.append("Meta+" + key[len("Ctrl+"):])
+                for candidate in candidates:
+                    sequence = QKeySequence(candidate)
+                    portable = sequence.toString(QKeySequence.PortableText)
+                    if portable and portable not in seen:
+                        seen.add(portable)
+                        sequences.append(sequence)
+            action.setShortcuts(sequences)
+            action.setShortcutContext(Qt.WindowShortcut)
+            action.triggered.connect(slot)
+            if menu is not None:
+                menu.addAction(action)
+            else:
+                self.addAction(action)
+            self._shortcut_actions.append(action)
 
     # ---------------------------------------------------------------- settings
 

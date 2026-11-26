@@ -708,3 +708,39 @@ def test_analyze_this_image_only_keeps_the_current_selection(window, monkeypatch
     )
     assert window.file_list.currentRow() == 1
     assert window._all_entries()[1].result is not None
+
+
+def test_shortcuts_are_actions_and_trigger_their_slots(window):
+    from PySide6.QtGui import QKeySequence
+
+    actions = window._shortcut_actions
+    assert actions, "shortcut actions must be kept alive on the window"
+    portable = {
+        sequence.toString(QKeySequence.PortableText)
+        for action in actions
+        for sequence in action.shortcuts()
+    }
+    for expected in ("Ctrl+O", "Ctrl+Return", "Ctrl+S", "Ctrl+B", "Ctrl+0", "Ctrl+1"):
+        assert expected in portable, (expected, portable)
+
+    toggle = next(a for a in actions if a.text() == "Toggle panels")
+    window._set_panel_collapsed("left", False)
+    window._set_panel_collapsed("right", False)
+    toggle.trigger()
+    QApplication.instance().processEvents()
+    assert window._left_collapsed and window._right_collapsed
+    toggle.trigger()
+    QApplication.instance().processEvents()
+    assert not window._left_collapsed and not window._right_collapsed
+
+
+def test_shortcut_labels_use_native_text(window):
+    import sys
+
+    from src.ui.main_window import _shortcut_label
+
+    native_o = "⌘O" if sys.platform == "darwin" else "Ctrl+O"
+    native_b = "⌘B" if sys.platform == "darwin" else "Ctrl+B"
+    assert _shortcut_label("Ctrl+O") == native_o
+    assert window.add_files_btn.toolTip() == f"Add images ({native_o})"
+    assert window.left_collapse_btn.toolTip() == f"Hide images panel ({native_b})"
