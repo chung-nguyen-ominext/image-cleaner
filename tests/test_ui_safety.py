@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from src.core.models import AnalysisResult, Region, RegionKind
 from src.ui.main_window import MainWindow
+from src.ui.theme import apply_theme
 from src.utils.image_utils import load_image
 
 FIXTURE = Path("tests/fixtures/btn_filled.png")
@@ -26,7 +27,9 @@ FIXTURE = Path("tests/fixtures/btn_filled.png")
 
 @pytest.fixture(scope="module")
 def qt_app():
-    return QApplication.instance() or QApplication([])
+    app = QApplication.instance() or QApplication([])
+    apply_theme(app)
+    return app
 
 
 @pytest.fixture()

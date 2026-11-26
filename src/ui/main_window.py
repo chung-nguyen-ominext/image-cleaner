@@ -496,6 +496,7 @@ class MainWindow(QMainWindow):
         )
         help_row.setObjectName("help_row")
         help_row.setStyleSheet("color:#9aa1b1;")
+        help_row.setWordWrap(True)
         pv.addWidget(help_row)
 
         self.preview = PreviewCanvas()
