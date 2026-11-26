@@ -57,6 +57,8 @@ jobs:
           python -m pip install --no-deps -e .
           python scripts/fetch_models.py
       - name: Test
+        env:
+          QT_SCALE_FACTOR: "1"
         run: python -m pytest -q
       - name: Build + verify + package
         run: python scripts/build_release.py

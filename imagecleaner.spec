@@ -67,12 +67,14 @@ gui_exe = EXE(
     debug=False, bootloader_ignore_signals=False, strip=False, upx=False,
     console=False, disable_windowed_traceback=False,
     icon=str(icon),
+    exclude_binaries=True,
 )
 selftest_exe = EXE(
     pyz, scripts["selftest"], [],
     name="imagecleaner-selftest",
     debug=False, bootloader_ignore_signals=False, strip=False, upx=False,
     console=True,
+    exclude_binaries=True,
 )
 
 coll = COLLECT(
