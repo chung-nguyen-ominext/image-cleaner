@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -82,6 +83,13 @@ def verify_macos_app() -> None:
     exe = APP_BUNDLE / "Contents" / "MacOS" / "imagecleaner-selftest"
     if not exe.is_file():
         raise SystemExit(f"app bundle is missing {exe}")
+    # A background-only .app never becomes the active app on macOS and gets no
+    # keyboard input, so every text field looks broken. Guard against the
+    # regression that BUNDLE picked console=True up from the self-test EXE.
+    plist = APP_BUNDLE / "Contents" / "Info.plist"
+    info = plistlib.loads(plist.read_bytes())
+    if info.get("LSBackgroundOnly"):
+        raise SystemExit(f"{plist} sets LSBackgroundOnly; the app would drop all keyboard input")
     run([str(exe), str(FIXTURE)], cwd=exe.parent)
 
 

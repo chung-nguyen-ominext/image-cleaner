@@ -100,11 +100,15 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": VERSION,
             "CFBundleVersion": VERSION,
             "NSHighResolutionCapable": True,
+            # COLLECT inherits console=True from its last EXE argument (the
+            # console self-test), so BUNDLE would mark the .app as a
+            # background-only process. macOS treats such an app as a daemon:
+            # it never becomes the active app, and although mouse clicks work
+            # it never receives keyboard input. BUNDLE assembles inside its
+            # constructor, so this has to be overridden through Info.plist
+            # (setting app.console afterwards is too late).
+            "LSBackgroundOnly": False,
         },
     )
-    # COLLECT inherits console=True from the last EXE (the selftest), which
-    # would make BUNDLE emit LSBackgroundOnly and suppress the normal GUI
-    # app behaviour. Force the .app itself to be windowed.
-    app.console = False
 
 
