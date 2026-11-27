@@ -12,12 +12,13 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QImageReader, QPixmap
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget,
+    QCheckBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QScrollArea, QSizePolicy, QToolButton, QVBoxLayout, QWidget,
 )
 
 from src.core.models import Region, RegionKind
 from src.ui import icons
+from src.ui.controls import ArrowComboBox, ArrowSpinBox
 from src.ui.theme import ACCENT, MUTED, ON_PRIMARY, dim_placeholder, repolish
 
 
@@ -610,7 +611,7 @@ class RegionCard(QFrame):
         mode_label = QLabel("Erase mode", self.details)
         mode_label.setObjectName("field_label_small")
         mode_col.addWidget(mode_label)
-        self.mode = QComboBox(self.details)
+        self.mode = ArrowComboBox(self.details)
         self.mode.setObjectName("erase_mode_combo")
         self.mode.setAccessibleName("Erase mode")
         for label, value in ERASE_MODES:
@@ -625,9 +626,14 @@ class RegionCard(QFrame):
         padding_label = QLabel("Padding (px)", self.details)
         padding_label.setObjectName("field_label_small")
         padding_col.addWidget(padding_label)
-        self.padding = QSpinBox(self.details)
+        self.padding = ArrowSpinBox(self.details)
         self.padding.setObjectName("region_padding")
         self.padding.setAccessibleName("Padding in pixels")
+        # The 28px right padding (needed so the line edit never covers the
+        # arrows) inflates the size hint; cap it so the card still fits the
+        # regions column without clipping.
+        self.padding.setMinimumWidth(72)
+        self.padding.setMaximumWidth(84)
         self.padding.setRange(-12, 12)
         self.padding.setValue(int(getattr(region, "margin_px", 0) or 0))
         padding_col.addWidget(self.padding)
@@ -816,7 +822,10 @@ class RegionCardList(QWidget):
             card.set_busy(busy)
 
     def _on_card_selected(self, region_id: int) -> None:
-        self.select_region(region_id, emit=True)
+        # Emit even when the card was already selected: the window uses this
+        # to bring the Original view back after the user inspected Result.
+        self.select_region(region_id)
+        self.regionSelected.emit(region_id)
 
     def cards(self) -> list[RegionCard]:
         return list(self._cards.values())

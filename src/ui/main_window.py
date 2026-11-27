@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QEvent, QObject, QSettings, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
     QFrame, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QListWidget, QListWidgetItem,
@@ -25,7 +25,7 @@ from src.config.settings import (
     AppSettings, ProcessOptions, load_keyword_preset, normalize_keyword_list,
     save_keyword_preset,
 )
-from src.core.batch_processor import collect_images, summarize, write_reports
+from src.core.batch_processor import collect_images, summarize
 from src.core.mask_generator import build_region_mask, region_is_element
 from src.core.mask_refinement import refine_element_mask
 from src.core.models import AnalysisResult, ImageStatus, ProcessReport, Region, RegionKind
@@ -126,6 +126,9 @@ class MainWindow(QMainWindow):
         self._current_path: str | None = None
         self._worker: FunctionWorker | None = None
         self._preview_worker: FunctionWorker | None = None
+        self._save_worker: FunctionWorker | None = None
+        self._active_save_button: QPushButton | None = None
+        self._save_button_state: tuple[str, QIcon, str, bool] | None = None
         self._busy = False
         self._updating_table = False
         self._prereq_hint = ""
@@ -421,6 +424,15 @@ class MainWindow(QMainWindow):
         self.files_title.setObjectName("panel_title")
         header.addWidget(self.files_title)
         header.addStretch(1)
+        self.clear_files_btn = QToolButton(header_host)
+        self.clear_files_btn.setObjectName("panel_toggle")
+        self.clear_files_btn.setIcon(icons.icon("remove"))
+        self.clear_files_btn.setIconSize(QSize(14, 14))
+        self.clear_files_btn.setToolTip("Clear all images from the list")
+        self.clear_files_btn.setAccessibleName("Clear all images")
+        self.clear_files_btn.setCursor(Qt.PointingHandCursor)
+        self.clear_files_btn.clicked.connect(self._clear_all_files)
+        header.addWidget(self.clear_files_btn)
         self.left_collapse_btn = QToolButton(header_host)
         self.left_collapse_btn.setObjectName("panel_toggle")
         self.left_collapse_btn.setIcon(icons.icon("chevron_left"))
@@ -763,6 +775,7 @@ class MainWindow(QMainWindow):
             self.keyword_edit,
             self.advanced_toggle_btn,
             self.analyze_btn,
+            self.clear_files_btn,
             self.file_list,
             self.original_btn,
             self.result_btn,
@@ -814,6 +827,8 @@ class MainWindow(QMainWindow):
         for widget in content:
             widget.setVisible(not collapsed)
         title.setVisible(not collapsed)
+        if side == "left":
+            self.clear_files_btn.setVisible(not collapsed)
         toggle.setIcon(icons.icon(inward if collapsed else outward))
         toggle.setToolTip(
             f"Show {label} panel ({_shortcut_label('Ctrl+B')})"
@@ -1013,6 +1028,7 @@ class MainWindow(QMainWindow):
 
         self.save_btn.setEnabled(not self._busy and current_has_enabled)
         self.save_all_btn.setEnabled(not self._busy and any_enabled)
+        self.clear_files_btn.setEnabled(has_images and not self._busy)
         self.save_all_btn.setText(
             f"Save all ({len(analyzed)})" if analyzed else "Save all"
         )
@@ -1108,6 +1124,9 @@ class MainWindow(QMainWindow):
                 return
             self._worker.requestInterruption()
             self._worker.wait(3000)
+        if self._save_worker is not None and self._save_worker.isRunning():
+            self._save_worker.requestInterruption()
+            self._save_worker.wait(3000)
         if self._preview_worker is not None and self._preview_worker.isRunning():
             self._preview_worker.requestInterruption()
             self._preview_worker.wait(3000)
@@ -1274,6 +1293,19 @@ class MainWindow(QMainWindow):
             self._show_entry(None)
         self._update_action_state()
 
+    def _clear_all_files(self) -> None:
+        if self._busy or self._save_worker is not None:
+            return
+        if not self._entries:
+            return
+        self.file_list.clear()
+        self._entries.clear()
+        self._row_widgets.clear()
+        self._show_entry(None)
+        self._update_files_title()
+        self._update_action_state()
+        log.info("Cleared image list")
+
     def _update_files_title(self) -> None:
         self.files_title.setText(f"Images {len(self._entries)}")
 
@@ -1362,6 +1394,12 @@ class MainWindow(QMainWindow):
     def _on_region_list_selected(self, region_id: int) -> None:
         if self._updating_table:
             return
+        # Region boxes are only painted on the original image.  Selecting a
+        # card while Result/Compare is showing switches back so the box the
+        # user just clicked is actually visible.  (-1 means the review filter
+        # hid the selected card, not a user click.)
+        if region_id >= 0 and not self.original_btn.isChecked():
+            self.original_btn.setChecked(True)
         self.preview.set_selected(region_id)
 
     def _on_region_edited(self, region_id: int, bbox) -> None:
@@ -1884,7 +1922,7 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------------------------- saving
 
     def _save_current(self) -> None:
-        if self._busy:
+        if self._busy or self._save_worker is not None:
             return
         entry = self._selected_entry()
         if entry is None:
@@ -1893,18 +1931,20 @@ class MainWindow(QMainWindow):
         if entry.result is None:
             QMessageBox.information(self, "Not analyzed", "Click “Analyze” before saving.")
             return
-        self._save_entries([entry], label="Saving image")
+        self._save_entries([entry], self.save_btn)
 
     def _save_all(self) -> None:
-        if self._busy:
+        if self._busy or self._save_worker is not None:
             return
         entries = self._all_entries()
         if not entries:
             QMessageBox.information(self, "No images", "Add images before saving.")
             return
-        self._save_entries(entries, label="Saving all")
+        self._save_entries(entries, self.save_all_btn)
 
-    def _save_entries(self, entries: list[ImageEntry], label: str) -> None:
+    def _save_entries(self, entries: list[ImageEntry], button: QPushButton) -> None:
+        if self._busy or self._save_worker is not None:
+            return
         options = self._collect_options()
         if not options.keywords:
             QMessageBox.information(self, "No keywords", "Enter at least one keyword.")
@@ -1946,15 +1986,10 @@ class MainWindow(QMainWindow):
                         error=f"{type(exc).__name__}: {exc}",
                     ))
             elapsed = time.perf_counter() - started
-            if reports:
-                try:
-                    write_reports(reports, out_dir, elapsed)
-                except OSError as exc:
-                    log.error("Could not write report: %s", exc)
             return SaveOutcome(reports=reports, analyzed=analyzed, elapsed_s=elapsed)
 
-        self._start_worker(job, on_success=self._on_save_done, label=label,
-                           busy_total=len(jobs))
+        self._set_save_loading(button)
+        self._start_save_worker(job, on_success=self._on_save_done)
 
     def _on_save_done(self, outcome: SaveOutcome) -> None:
         for key, result in outcome.analyzed.items():
@@ -1996,6 +2031,63 @@ class MainWindow(QMainWindow):
         self._update_action_state()
 
     # ------------------------------------------------------------------- worker
+
+    def _set_save_loading(self, button: QPushButton) -> None:
+        self._active_save_button = button
+        self._save_button_state = (
+            button.text(), button.icon(), button.toolTip(), button.isEnabled()
+        )
+        color = ON_SUCCESS if button is self.save_all_btn else MUTED
+        button.setIcon(icons.spinning_icon(button, color))
+        button.setToolTip("Saving…")
+        self.save_btn.setEnabled(False)
+        self.save_all_btn.setEnabled(False)
+        self.clear_files_btn.setEnabled(False)
+
+    def _restore_save_button(self) -> None:
+        button = self._active_save_button
+        state = self._save_button_state
+        if button is None or state is None:
+            return
+        text, icon, tooltip, enabled = state
+        button.setText(text)
+        button.setIcon(icon)
+        button.setToolTip(tooltip)
+        button.setEnabled(enabled)
+        setattr(button, "_loading_spin", None)
+        self._active_save_button = None
+        self._save_button_state = None
+
+    def _start_save_worker(self, job, on_success) -> None:
+        """Save in the background without switching the whole window to busy."""
+        if self._save_worker is not None and self._save_worker.isRunning():
+            return
+        self._busy = True
+        worker = FunctionWorker(job, self)
+        worker.succeeded.connect(
+            lambda result: self._on_save_succeeded(result, on_success)
+        )
+        worker.failed.connect(self._on_save_failed)
+        worker.finished.connect(lambda w=worker: self._on_save_finished(w))
+        self._save_worker = worker
+        worker.start()
+
+    def _on_save_succeeded(self, result, on_success) -> None:
+        self._busy = False
+        self._restore_save_button()
+        on_success(result)
+
+    def _on_save_failed(self, traceback_text: str) -> None:
+        self._busy = False
+        self._restore_save_button()
+        self._update_action_state()
+        self._on_worker_failed(traceback_text)
+
+    def _on_save_finished(self, worker) -> None:
+        self._restore_save_button()
+        if self._save_worker is worker:
+            self._save_worker = None
+        worker.deleteLater()
 
     def _start_worker(self, job, on_success, label: str, busy_total: int = 0,
                       quiet: bool = False) -> None:

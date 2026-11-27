@@ -42,12 +42,20 @@ NAMES: dict[str, str] = {
     "minus": "fa5s.minus",
     "grip_vertical": "fa5s.ellipsis-v",
     "grip_horizontal": "fa5s.ellipsis-h",
+    "loading": "fa5s.spinner",
 }
 
 
 def icon(name: str, color: str = MUTED) -> QIcon:
     """A themed icon by semantic name."""
     return qta.icon(NAMES[name], color=color, color_disabled=DISABLED)
+
+
+def spinning_icon(widget, color: str = MUTED) -> QIcon:
+    """A spinner icon; the Spin object is kept alive on the widget."""
+    spin = qta.Spin(widget)
+    setattr(widget, "_loading_spin", spin)
+    return qta.icon(NAMES["loading"], color=color, animation=spin)
 
 
 @lru_cache(maxsize=128)

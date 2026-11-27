@@ -41,8 +41,11 @@ class ArrowSpinBox(QSpinBox):
         super().paintEvent(event)
         painter = QPainter(self)
         cx = self.width() - 11
+        # Compact spin boxes (region cards) need smaller chevrons so the two
+        # arrows do not touch each other.
+        size = 12 if self.height() >= 32 else 10
         for name, quarter in (("chevron_up", 0.27), ("chevron_down", 0.73)):
-            pix = icons.pixmap(name, 12, MUTED)
+            pix = icons.pixmap(name, size, MUTED)
             painter.drawPixmap(
                 cx - pix.width() // 2,
                 int(self.height() * quarter) - pix.height() // 2,

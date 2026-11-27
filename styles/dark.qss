@@ -731,10 +731,17 @@ QScrollArea#region_scroll > QWidget#qt_scrollarea_viewport {
     font-size: 11px;
 }
 
-#region_details QComboBox,
-#region_details QSpinBox {
+#region_details QComboBox {
     min-height: 20px;
     padding: 2px 8px;
+}
+
+#region_details QSpinBox {
+    min-height: 20px;
+    /* Keep the line-edit child away from the up/down buttons.  A plain
+       `padding: 2px 8px` here overrode the 28px reservation and let the
+       line edit cover the arrows, so only their right edge was clickable. */
+    padding: 2px 28px 2px 8px;
 }
 
 #region_check::indicator {

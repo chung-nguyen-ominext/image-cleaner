@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import shutil
 import time
 from pathlib import Path
 
@@ -598,7 +599,30 @@ class Pipeline:
                 ".tif": "TIFF", ".tiff": "TIFF",
             }.get(suffix.lower())
         out_path = unique_output_path(Path(out_dir), path.stem, suffix)
-        save_image(loaded, out_img, out_path, fmt=fmt, jpeg_quality=self.options.jpeg_quality)
+        unchanged = np.array_equal(out_img, loaded.bgr)
+        same_format = fmt is None or fmt.upper() == loaded.fmt.upper()
+        if unchanged and same_format:
+            try:
+                shutil.copyfile(path, out_path)
+            except OSError as exc:
+                log.warning("could not copy unchanged image %s: %s", path, exc)
+                save_image(loaded, out_img, out_path, fmt=fmt,
+                           jpeg_quality=self.options.jpeg_quality)
+        else:
+            save_image(loaded, out_img, out_path, fmt=fmt,
+                       jpeg_quality=self.options.jpeg_quality)
+
+        try:
+            src_size = path.stat().st_size
+            out_size = out_path.stat().st_size
+            if out_size > src_size:
+                log.warning(
+                    "%s: saved file is larger than the source (%.1f KB -> %.1f KB); "
+                    "lossless encoding can grow palette or lossy inputs",
+                    path.name, src_size / 1024, out_size / 1024,
+                )
+        except OSError:
+            pass
 
         if debug_dir is not None:
             dbg = Path(debug_dir)

@@ -12,7 +12,7 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QLabel, QSpinBox, QToolButton,
+    QApplication, QLabel, QToolButton,
 )
 
 from src.core.models import AnalysisResult, Region, RegionKind
@@ -185,8 +185,8 @@ def test_dropdowns_and_spinners_draw_visible_arrows(window):
 
     entry, _region = _make_window_with_region(window)
     card = window.region_list.cards()[0]
-    assert isinstance(card.mode, QComboBox)
-    assert isinstance(card.padding, QSpinBox)
+    assert isinstance(card.mode, ArrowComboBox)
+    assert isinstance(card.padding, ArrowSpinBox)
 
     apply_theme(QApplication.instance())
     QApplication.instance().processEvents()
@@ -214,6 +214,33 @@ def test_dropdowns_and_spinners_draw_visible_arrows(window):
             for y in range(cy - 4, cy + 5)
         )
         assert max_light > 100, f"spinbox chevron at {quarter} is not painted"
+
+    # The region card owns its own controls; they must paint arrows too.
+    window.region_list.select_region(card.region.id)
+    QApplication.instance().processEvents()
+    card.mode.resize(160, 30)
+    image = card.mode.grab().toImage()
+    cx, cy = card.mode.width() - 11, card.mode.height() // 2
+    max_light = max(
+        image.pixelColor(x, y).lightness()
+        for x in range(cx - 5, cx + 6)
+        for y in range(cy - 4, cy + 5)
+    )
+    assert max_light > 100, "region erase-mode chevron is not painted"
+
+    card.padding.resize(100, 30)
+    image = card.padding.grab().toImage()
+    for quarter in (0.27, 0.73):
+        cx = card.padding.width() - 11
+        cy = int(card.padding.height() * quarter)
+        max_light = max(
+            image.pixelColor(x, y).lightness()
+            for x in range(cx - 5, cx + 6)
+            for y in range(cy - 4, cy + 5)
+        )
+        assert max_light > 100, (
+            f"region padding chevron at {quarter} is not painted"
+        )
 
 
 def test_keyword_chip_input_commits_on_enter_and_comma(window):
@@ -744,3 +771,73 @@ def test_shortcut_labels_use_native_text(window):
     assert _shortcut_label("Ctrl+O") == native_o
     assert window.add_files_btn.toolTip() == f"Add images ({native_o})"
     assert window.left_collapse_btn.toolTip() == f"Hide images panel ({native_b})"
+
+
+def test_clicking_region_card_switches_to_original(window):
+    import numpy as np
+
+    window._start_worker = lambda *args, **kwargs: None
+    entry, region = _make_window_with_region(window, RegionKind.TEXT)
+    app = QApplication.instance()
+    result_bgr = np.zeros((20, 20, 3), dtype="uint8")
+
+    # Mimic the finished Result render: result pixmap shown, boxes hidden.
+    window.preview.set_result_image(result_bgr)
+    window.preview.set_show_region_boxes(False)
+    window.result_btn.setChecked(True)
+    app.processEvents()
+    assert window.result_btn.isChecked()
+    assert not window.preview.show_region_boxes
+
+    window.region_list._on_card_selected(region.id)
+    app.processEvents()
+    assert window.original_btn.isChecked()
+    assert not window.result_btn.isChecked()
+    assert window.preview.show_region_boxes
+    assert window.preview.selected_region_id() == region.id
+    assert window._prefer_result is False
+
+    # Clicking the already-selected card from Result also returns to Original.
+    window.preview.set_result_image(result_bgr)
+    window.preview.set_show_region_boxes(False)
+    window.result_btn.setChecked(True)
+    app.processEvents()
+    window.region_list._on_card_selected(region.id)
+    app.processEvents()
+    assert window.original_btn.isChecked()
+    assert window.preview.show_region_boxes
+
+
+def test_region_padding_arrows_are_fully_clickable(window):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtTest import QTest
+
+    entry, region = _make_window_with_region(window, RegionKind.TEXT)
+    card = window.region_list.cards()[0]
+    window.region_list.select_region(region.id)
+    QApplication.instance().processEvents()
+
+    spin = card.padding
+    # The spin box's line-edit child must stop before the up/down buttons.
+    # If it covers them, hovering shows an I-beam and clicks are swallowed.
+    for y in (4, spin.height() - 4):
+        for x in range(spin.width() - 22, spin.width()):
+            assert spin.childAt(QPoint(x, y)) is None, (x, y)
+
+    spin.setValue(0)
+    QTest.mouseClick(
+        spin, Qt.LeftButton, Qt.NoModifier,
+        QPoint(spin.width() - 11, int(spin.height() * 0.27)),
+    )
+    QApplication.instance().processEvents()
+    assert spin.value() == 1
+    assert region.margin_px == 1
+
+    # The left half of the same chevron works too.
+    QTest.mouseClick(
+        spin, Qt.LeftButton, Qt.NoModifier,
+        QPoint(spin.width() - 15, int(spin.height() * 0.27)),
+    )
+    QApplication.instance().processEvents()
+    assert spin.value() == 2
+    assert region.margin_px == 2

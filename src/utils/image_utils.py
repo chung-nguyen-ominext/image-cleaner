@@ -21,6 +21,8 @@ class LoadedImage:
     dpi: tuple[float, float] | None = None
     exif: bytes | None = None
     fmt: str = "PNG"
+    mode: str = "RGB"
+    palette: list[int] | None = None
 
     @property
     def height(self) -> int:
@@ -47,6 +49,8 @@ def load_image(path: str | Path) -> LoadedImage:
         dpi = im.info.get("dpi")
         exif = im.info.get("exif")
         im = ImageOps.exif_transpose(im)
+        mode = im.mode
+        palette = im.getpalette() if mode == "P" else None
 
         alpha: np.ndarray | None = None
         if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
@@ -65,6 +69,8 @@ def load_image(path: str | Path) -> LoadedImage:
         dpi=dpi,
         exif=exif,
         fmt=fmt,
+        mode=mode,
+        palette=palette,
     )
 
 
@@ -77,6 +83,30 @@ def unique_output_path(out_dir: Path, stem: str, suffix: str) -> Path:
         candidate = out_dir / f"{stem}_{n}{suffix}"
         n += 1
     return candidate
+
+
+def _palette_if_lossless(img: Image.Image, palette: list[int]) -> Image.Image:
+    """Keep an indexed PNG indexed when every pixel is still in the palette."""
+    colors = np.asarray(palette, dtype=np.uint8).reshape(-1, 3)[:256]
+    lookup: dict[tuple[int, int, int], int] = {}
+    for index, color in enumerate(colors):
+        lookup.setdefault(tuple(int(v) for v in color), index)
+
+    pixels = np.asarray(img).reshape(-1, 3)
+    unique, inverse = np.unique(pixels, axis=0, return_inverse=True)
+    if len(unique) > len(lookup):
+        return img
+
+    indices = np.empty(len(unique), dtype=np.uint8)
+    for i, color in enumerate(unique):
+        index = lookup.get(tuple(int(v) for v in color))
+        if index is None:
+            return img
+        indices[i] = index
+
+    out = Image.fromarray(indices[inverse].reshape(img.height, img.width), mode="P")
+    out.putpalette(palette)
+    return out
 
 
 def save_image(loaded: LoadedImage, bgr: np.ndarray, out_path: Path, fmt: str | None = None,
@@ -104,7 +134,11 @@ def save_image(loaded: LoadedImage, bgr: np.ndarray, out_path: Path, fmt: str | 
         if loaded.exif:
             kwargs["exif"] = loaded.exif
     elif fmt == "PNG":
-        kwargs.update(compress_level=6)
+        if loaded.alpha is None and loaded.mode == "P" and loaded.palette:
+            img = _palette_if_lossless(img, loaded.palette)
+        kwargs.update(compress_level=9, optimize=True)
+    elif fmt == "WEBP":
+        kwargs.update(lossless=True, quality=100, method=6)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path, format=fmt, **kwargs)
