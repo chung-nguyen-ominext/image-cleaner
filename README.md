@@ -5,7 +5,7 @@ then erases them with inpainting. Runs on CPU.
 
 ## Download & install
 
-Current release: **0.2.1** — see [CHANGELOG.md](CHANGELOG.md). Download from the
+Current release: **0.2.2** — see [CHANGELOG.md](CHANGELOG.md). Download from the
 [Releases page](https://github.com/chung-nguyen-ominext/image-cleaner/releases);
 file names use `<version>` for the release number.
 

@@ -2,7 +2,7 @@
 
 All notable changes to ImageCleaner are documented here.
 
-## Unreleased
+## 0.2.2 – 2026-11-27
 
 - The GUI now saves only images to the output folder; `report.csv` / `report.json` are written
   by CLI batch runs only.
