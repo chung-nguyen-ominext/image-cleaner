@@ -349,7 +349,7 @@ class MainWindow(QMainWindow):
         self.padding_spin = ArrowSpinBox(dialog)
         self.padding_spin.setRange(0, 6)
         self.padding_spin.setSuffix(" px")
-        self.padding_spin.setMaximumWidth(120)
+        self.padding_spin.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.padding_spin.valueChanged.connect(self._on_padding_changed)
         grid.addWidget(self.padding_spin, 3, 1)
 

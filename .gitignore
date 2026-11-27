@@ -17,3 +17,4 @@ models/lama/*.onnx
 *.log
 .DS_Store
 .venv
+Guideline.txt

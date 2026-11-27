@@ -629,15 +629,11 @@ class RegionCard(QFrame):
         self.padding = ArrowSpinBox(self.details)
         self.padding.setObjectName("region_padding")
         self.padding.setAccessibleName("Padding in pixels")
-        # The 28px right padding (needed so the line edit never covers the
-        # arrows) inflates the size hint; cap it so the card still fits the
-        # regions column without clipping.
-        self.padding.setMinimumWidth(72)
-        self.padding.setMaximumWidth(84)
+        self.padding.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.padding.setRange(-12, 12)
         self.padding.setValue(int(getattr(region, "margin_px", 0) or 0))
         padding_col.addWidget(self.padding)
-        details.addLayout(padding_col, 0)
+        details.addLayout(padding_col, 1)
 
         outer.addWidget(self.details)
 

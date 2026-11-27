@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "imagecleaner"
-version = "0.2.2"
+version = "0.2.3"
 description = "Offline image cleaner: find user-defined text/UI regions and remove them with inpainting"
 requires-python = ">=3.11"
 dependencies = [

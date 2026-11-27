@@ -2,6 +2,13 @@
 
 All notable changes to ImageCleaner are documented here.
 
+## 0.2.3 – 2026-11-27
+
+- Fixed HiDPI/macOS chevron alignment in combo boxes and spin boxes.
+- Aligned the Advanced and region-card padding fields with the other inputs.
+- Added left inset for all spin-box values (Advanced and region-card padding), where QSS
+  padding did not reach the internal line edit.
+
 ## 0.2.2 – 2026-11-27
 
 - The GUI now saves only images to the output folder; `report.csv` / `report.json` are written

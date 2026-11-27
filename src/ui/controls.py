@@ -7,7 +7,7 @@ hand-coded lines, so every control uses the same offline icon library.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QRectF, Qt, QTimer
 from PySide6.QtGui import QCursor, QGuiApplication, QPainter
 from PySide6.QtWidgets import (
     QComboBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QSizePolicy,
@@ -18,6 +18,22 @@ from src.ui import icons
 from src.ui.theme import MUTED, TEXT
 
 
+def _draw_icon(painter: QPainter, pix, cx: float, cy: float) -> None:
+    """Draw a pixmap centred on logical coordinates.
+
+    Retina/HiDPI pixmaps are physically 2x larger; using pixmap.width() for
+    positioning pushed the macOS chevrons towards the top edge.
+    """
+    size = pix.deviceIndependentSize()
+    target = QRectF(
+        cx - size.width() / 2,
+        cy - size.height() / 2,
+        size.width(),
+        size.height(),
+    )
+    painter.drawPixmap(target, pix, QRectF(pix.rect()))
+
+
 class ArrowComboBox(QComboBox):
     """QComboBox with a visible chevron in the drop-down area."""
 
@@ -26,16 +42,23 @@ class ArrowComboBox(QComboBox):
         color = TEXT if self.underMouse() else MUTED
         pix = icons.pixmap("chevron_down", 14, color)
         painter = QPainter(self)
-        painter.drawPixmap(
-            self.width() - 11 - pix.width() // 2,
-            (self.height() - pix.height()) // 2,
+        _draw_icon(
+            painter,
             pix,
+            self.width() - 11,
+            self.height() / 2,
         )
         painter.end()
 
 
 class ArrowSpinBox(QSpinBox):
     """QSpinBox with visible up/down chevrons next to the value."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        # QSS padding does not reach the spin box's internal line edit, so the
+        # value sits against the left border. Add the same inset explicitly.
+        self.lineEdit().setTextMargins(10, 0, 0, 0)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt naming
         super().paintEvent(event)
@@ -46,11 +69,7 @@ class ArrowSpinBox(QSpinBox):
         size = 12 if self.height() >= 32 else 10
         for name, quarter in (("chevron_up", 0.27), ("chevron_down", 0.73)):
             pix = icons.pixmap(name, size, MUTED)
-            painter.drawPixmap(
-                cx - pix.width() // 2,
-                int(self.height() * quarter) - pix.height() // 2,
-                pix,
-            )
+            _draw_icon(painter, pix, cx, self.height() * quarter)
         painter.end()
 
 
